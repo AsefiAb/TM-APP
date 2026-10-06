@@ -154,6 +154,9 @@ export function Input({
   onChangeText,
   multiline = false,
   maxLength,
+  inputMode,
+  autoCapitalize,
+  autoCorrect,
   accessibilityLabel,
   style,
 }: {
@@ -163,6 +166,9 @@ export function Input({
   onChangeText: (text: string) => void;
   multiline?: boolean;
   maxLength?: number;
+  inputMode?: React.ComponentProps<typeof TextInput>["inputMode"];
+  autoCapitalize?: React.ComponentProps<typeof TextInput>["autoCapitalize"];
+  autoCorrect?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<TextStyle>;
 }) {
@@ -180,6 +186,9 @@ export function Input({
         }
         multiline={multiline}
         maxLength={maxLength}
+        inputMode={inputMode}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         style={[

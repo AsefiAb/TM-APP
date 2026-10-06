@@ -12,6 +12,8 @@ import {
   withOptOut,
 } from "./sam";
 import { useDemo } from "./store";
+import { emptyOfferDraft } from "./offers";
+import { OfferBuilder } from "./offer-builder";
 import {
   Badge,
   Button,
@@ -110,6 +112,7 @@ export function CampaignComposer({
   );
   const [tone, setTone] = useState<WriterTone>("friendly");
   const [details, setDetails] = useState("");
+  const [offerDraft, setOfferDraft] = useState(emptyOfferDraft);
   const [timing, setTiming] = useState<Timing>(
     initial?.scheduledAt ? "keep" : "draft",
   );
@@ -129,6 +132,7 @@ export function CampaignComposer({
 
   const dirty =
     reusing ||
+    JSON.stringify(offerDraft) !== JSON.stringify(emptyOfferDraft()) ||
     body !== editableMessage(initial?.body ?? "") ||
     name !== (initial?.name ?? "") ||
     audience !== (initial?.audience ?? "All subscribers") ||
@@ -406,6 +410,122 @@ export function CampaignComposer({
             </View>
           )}
 
+          <View style={styles.writer}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start with an example"
+              accessibilityState={{ expanded: writerOpen }}
+              onPress={() => setWriterOpen(!writerOpen)}
+              style={styles.writerToggle}
+            >
+              <View style={styles.writerMark}>
+                <Icon name="edit-3" size={22} color={C.primary} />
+              </View>
+              <View style={ui.grow}>
+                <Text style={styles.optionTitle}>Start with an example</Text>
+                <Text style={ui.help}>
+                  Offers, updates, and friendly follow-ups
+                </Text>
+              </View>
+              <Icon
+                name={writerOpen ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={C.primary}
+              />
+            </Pressable>
+            {writerOpen && (
+              <View style={styles.writerContent}>
+                <Text style={ui.body}>
+                  Pick what you want to do. We’ll help with the details.
+                </Text>
+                <Text style={styles.fieldLabel}>What do you want to do?</Text>
+                <View style={styles.choiceList}>
+                  {GOALS.map((item) => (
+                    <Pressable
+                      key={item.value}
+                      accessibilityRole="radio"
+                      accessibilityState={{
+                        checked: writerGoal === item.value,
+                      }}
+                      onPress={() => setWriterGoal(item.value)}
+                      style={[
+                        styles.goalOption,
+                        writerGoal === item.value && styles.optionSelected,
+                      ]}
+                    >
+                      <View style={ui.grow}>
+                        <Text style={styles.optionTitle}>{item.label}</Text>
+                        <Text style={ui.help}>{item.detail}</Text>
+                      </View>
+                      <Radio selected={writerGoal === item.value} />
+                    </Pressable>
+                  ))}
+                </View>
+                {writerGoal === "promotion" ? (
+                  <OfferBuilder
+                    draft={offerDraft}
+                    onChange={setOfferDraft}
+                    hasMessage={Boolean(body.trim())}
+                    onUseMessage={(message) => {
+                      setBody(editableMessage(message));
+                      setMessageError("");
+                      completeGuide("writer");
+                      setWriterOpen(false);
+                      resetSheetScroll();
+                    }}
+                  />
+                ) : (
+                  <>
+                    <Input
+                      label="The details"
+                      placeholder="Add your offer, event, or news. Include the action you want people to take."
+                      value={details}
+                      onChangeText={(value) => {
+                        setDetails(value);
+                        setDetailsError("");
+                      }}
+                      multiline
+                      maxLength={1200}
+                      style={styles.detailsInput}
+                    />
+                    {detailsError ? (
+                      <Text accessibilityRole="alert" style={ui.error}>
+                        {detailsError}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.fieldLabel}>Make it sound</Text>
+                    <Chips
+                      options={TONES.map((item) => item.label)}
+                      value={
+                        TONES.find((item) => item.value === tone)?.label ??
+                        "Friendly"
+                      }
+                      onChange={(label) =>
+                        setTone(
+                          TONES.find((item) => item.label === label)?.value ??
+                            "friendly",
+                        )
+                      }
+                    />
+                    <Button
+                      title={
+                        body.trim()
+                          ? "Replace message with suggestion"
+                          : "Create a starting point"
+                      }
+                      onPress={createStartingPoint}
+                      icon="edit-3"
+                      variant="secondary"
+                    />
+                    <Text style={ui.help}>
+                      Uses your details to fill a writing template. You can edit
+                      every word before saving.
+                    </Text>
+                  </>
+                )}
+              </View>
+            )}
+          </View>
           <Input
             label="Your message"
             placeholder="What would you like your customers to know?"
@@ -438,106 +558,6 @@ export function CampaignComposer({
             </Text>
           </View>
 
-          <View style={styles.writer}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Writer assistance"
-              accessibilityState={{ expanded: writerOpen }}
-              onPress={() => setWriterOpen(!writerOpen)}
-              style={styles.writerToggle}
-            >
-              <View style={styles.writerMark}>
-                <Icon name="edit-3" size={22} color={C.primary} />
-              </View>
-              <View style={ui.grow}>
-                <Text style={styles.optionTitle}>
-                  A little help from Writer
-                </Text>
-                <Text style={ui.help}>Template assist · works offline</Text>
-              </View>
-              <Icon
-                name={writerOpen ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={C.primary}
-              />
-            </Pressable>
-            {writerOpen && (
-              <View style={styles.writerContent}>
-                <Text style={ui.body}>
-                  Choose your goal, add the facts, and get an editable starting
-                  point.
-                </Text>
-                <Text style={styles.fieldLabel}>What do you want to do?</Text>
-                <View style={styles.choiceList}>
-                  {GOALS.map((item) => (
-                    <Pressable
-                      key={item.value}
-                      accessibilityRole="radio"
-                      accessibilityState={{
-                        checked: writerGoal === item.value,
-                      }}
-                      onPress={() => setWriterGoal(item.value)}
-                      style={[
-                        styles.goalOption,
-                        writerGoal === item.value && styles.optionSelected,
-                      ]}
-                    >
-                      <View style={ui.grow}>
-                        <Text style={styles.optionTitle}>{item.label}</Text>
-                        <Text style={ui.help}>{item.detail}</Text>
-                      </View>
-                      <Radio selected={writerGoal === item.value} />
-                    </Pressable>
-                  ))}
-                </View>
-                <Input
-                  label="The details"
-                  placeholder="Add your offer, event, or news. Include the action you want people to take."
-                  value={details}
-                  onChangeText={(value) => {
-                    setDetails(value);
-                    setDetailsError("");
-                  }}
-                  multiline
-                  maxLength={1200}
-                  style={styles.detailsInput}
-                />
-                {detailsError ? (
-                  <Text accessibilityRole="alert" style={ui.error}>
-                    {detailsError}
-                  </Text>
-                ) : null}
-                <Text style={styles.fieldLabel}>Make it sound</Text>
-                <Chips
-                  options={TONES.map((item) => item.label)}
-                  value={
-                    TONES.find((item) => item.value === tone)?.label ??
-                    "Friendly"
-                  }
-                  onChange={(label) =>
-                    setTone(
-                      TONES.find((item) => item.label === label)?.value ??
-                        "friendly",
-                    )
-                  }
-                />
-                <Button
-                  title={
-                    body.trim()
-                      ? "Replace message with suggestion"
-                      : "Create a starting point"
-                  }
-                  onPress={createStartingPoint}
-                  icon="edit-3"
-                  variant="secondary"
-                />
-                <Text style={ui.help}>
-                  Uses your details to fill a writing template. You can edit
-                  every word before saving.
-                </Text>
-              </View>
-            )}
-          </View>
           <Button
             title="Next: choose audience"
             onPress={continueToAudience}
