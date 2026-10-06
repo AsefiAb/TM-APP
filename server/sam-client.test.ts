@@ -425,3 +425,110 @@ test("oversized response bodies are rejected before JSON projection", async () =
   });
   await assert.rejects(tooLarge.getAccount(), errorCode("schema"));
 });
+
+test("incoming diagnostics identify only fixed field paths and JSON type categories", async () => {
+  const validResult = {
+    mobileOriginatedMessages: [],
+    page: 1,
+    pageSize: 1000,
+    nextPage: null,
+  };
+  const cases: [unknown, string][] = [
+    [[], "incoming.response: expected object; observed array."],
+    [{ result: [] }, "incoming.result: expected object; observed array."],
+    [
+      { result: { ...validResult, page: "PRIVATE_MARKER_ACCOUNT_99117" } },
+      "incoming.result.page: expected positive_integer; observed string.",
+    ],
+    [
+      { result: { ...validResult, page: 0 } },
+      "incoming.result.page: expected positive_integer; observed zero.",
+    ],
+    [
+      { result: { ...validResult, page: 99117 } },
+      "incoming.result.page: expected requested_page; observed different_page.",
+    ],
+    [
+      { result: { ...validResult, pageSize: undefined } },
+      "incoming.result.pageSize: expected integer_1_to_1000; observed missing.",
+    ],
+    [
+      { result: { ...validResult, pageSize: 0 } },
+      "incoming.result.pageSize: expected integer_1_to_1000; observed zero.",
+    ],
+    [
+      { result: { ...validResult, pageSize: 99117 } },
+      "incoming.result.pageSize: expected integer_1_to_1000; observed out_of_range.",
+    ],
+    [
+      { result: { ...validResult, mobileOriginatedMessages: null } },
+      "incoming.result.mobileOriginatedMessages: expected array; observed null.",
+    ],
+    [
+      {
+        result: {
+          ...validResult,
+          nextPage: { PRIVATE_MARKER_KEY: "PRIVATE_MARKER_SECRET" },
+        },
+      },
+      "incoming.result.nextPage: expected string_or_null_or_missing; observed object.",
+    ],
+  ];
+  for (const [payload, expected] of cases) {
+    await assert.rejects(fixture(payload).client.listIncoming(), (error) => {
+      assert.ok(error instanceof SamApiError);
+      assert.equal(error.code, "schema");
+      assert.equal(error.diagnostic, expected);
+      assert.doesNotMatch(JSON.stringify(error), /PRIVATE_MARKER|99117/);
+      return true;
+    });
+  }
+});
+
+test("incoming message diagnostics never contain body values, arbitrary keys, or row indices", async () => {
+  const payload = {
+    result: {
+      page: 1,
+      pageSize: 1000,
+      mobileOriginatedMessages: [
+        {
+          from: "PRIVATE_MARKER_PHONE",
+          body: { PRIVATE_MARKER_KEY: "PRIVATE_MARKER_SECRET" },
+          timestamp: "PRIVATE_MARKER_DATE",
+        },
+      ],
+    },
+  };
+  await assert.rejects(fixture(payload).client.listIncoming(), (error) => {
+    assert.ok(error instanceof SamApiError);
+    assert.equal(
+      error.diagnostic,
+      "incoming.message.body: expected string; observed object.",
+    );
+    assert.doesNotMatch(
+      `${JSON.stringify(error)} ${error.message}`,
+      /PRIVATE_MARKER|\[0\]/,
+    );
+    return true;
+  });
+});
+
+test("diagnostic constructor rejects untrusted paths, expected types, and observed categories", () => {
+  for (const diagnostic of [
+    { path: "PRIVATE_MARKER_PATH", expected: "object", observed: "object" },
+    {
+      path: "incoming.result",
+      expected: "PRIVATE_MARKER_EXPECTED",
+      observed: "object",
+    },
+    {
+      path: "incoming.result",
+      expected: "object",
+      observed: "PRIVATE_MARKER_OBSERVED",
+    },
+  ]) {
+    const error = new SamApiError("schema", undefined, diagnostic as never);
+    assert.equal(error.diagnostic, undefined);
+    assert.doesNotMatch(JSON.stringify(error), /PRIVATE_MARKER/);
+  }
+});

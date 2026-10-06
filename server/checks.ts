@@ -35,7 +35,14 @@ export function safeFailure(error: unknown): string {
     network:
       "Could not reach SAM securely. Check the network; redirects are not followed.",
   };
-  return explanations[error.code];
+  const httpStatus =
+    Number.isInteger(error.status) &&
+    error.status! >= 100 &&
+    error.status! <= 599
+      ? ` HTTP ${error.status}.`
+      : "";
+  const diagnostic = error.diagnostic ? ` ${error.diagnostic}` : "";
+  return explanations[error.code] + httpStatus + diagnostic;
 }
 
 /** Fixed read-only checks. Output contains neither account records nor provider text. */

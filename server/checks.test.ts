@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { checkConnections, safeFailure } from "./checks";
-import { SamClient } from "./sam-client";
+import { SamApiError, SamClient } from "./sam-client";
 
 const fixtureAccount = "test-account";
 const config = {
@@ -132,4 +132,9 @@ test("unexpected exception text never appears in diagnostics", () => {
     safeFailure(new Error("secret token and private message")),
     /secret token|private message/,
   );
+});
+
+test("diagnostics include valid HTTP status codes without provider error text", () => {
+  assert.match(safeFailure(new SamApiError("http", 405)), /HTTP 405/);
+  assert.doesNotMatch(safeFailure(new SamApiError("http", NaN)), /HTTP/);
 });

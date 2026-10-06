@@ -37,16 +37,116 @@ const ERROR_MESSAGES: Record<SamErrorCode, string> = {
   network: "The SAM read request could not be completed.",
 };
 
+const DIAGNOSTIC_PATHS = [
+  "incoming.response",
+  "incoming.result",
+  "incoming.result.mobileOriginatedMessages",
+  "incoming.message",
+  "incoming.message.from",
+  "incoming.message.body",
+  "incoming.message.timestamp",
+  "incoming.result.page",
+  "incoming.result.pageSize",
+  "incoming.result.nextPage",
+] as const;
+const DIAGNOSTIC_EXPECTED = [
+  "object",
+  "array",
+  "nonempty_string",
+  "string",
+  "positive_integer",
+  "integer_1_to_1000",
+  "requested_page",
+  "at_most_page_size",
+  "string_or_null_or_missing",
+] as const;
+const DIAGNOSTIC_OBSERVED = [
+  "missing",
+  "null",
+  "array",
+  "object",
+  "string",
+  "empty_string",
+  "boolean",
+  "zero",
+  "positive_integer",
+  "negative_integer",
+  "non_integer_number",
+  "other",
+  "out_of_range",
+  "different_page",
+  "too_many_items",
+  "too_long",
+] as const;
+type DiagnosticPath = (typeof DIAGNOSTIC_PATHS)[number];
+type SchemaDiagnostic = {
+  path: DiagnosticPath;
+  expected: (typeof DIAGNOSTIC_EXPECTED)[number];
+  observed: (typeof DIAGNOSTIC_OBSERVED)[number];
+};
+
+function formatDiagnostic(value?: SchemaDiagnostic): string | undefined {
+  // Runtime validation keeps even a wrongly constructed error from printing data.
+  if (
+    !value ||
+    !DIAGNOSTIC_PATHS.includes(value.path) ||
+    !DIAGNOSTIC_EXPECTED.includes(value.expected) ||
+    !DIAGNOSTIC_OBSERVED.includes(value.observed)
+  )
+    return undefined;
+  return `${value.path}: expected ${value.expected}; observed ${value.observed}.`;
+}
+
+function observedType(value: unknown): SchemaDiagnostic["observed"] {
+  if (value === undefined) return "missing";
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "string")
+    return value.trim() ? "string" : "empty_string";
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) return "non_integer_number";
+    return value === 0
+      ? "zero"
+      : value > 0
+        ? "positive_integer"
+        : "negative_integer";
+  }
+  if (typeof value === "boolean") return "boolean";
+  return typeof value === "object" ? "object" : "other";
+}
+
+function schemaIssue(
+  path: DiagnosticPath | undefined,
+  expected: SchemaDiagnostic["expected"],
+  value: unknown,
+  observed?: SchemaDiagnostic["observed"],
+): SamApiError {
+  return new SamApiError(
+    "schema",
+    undefined,
+    path
+      ? { path, expected, observed: observed ?? observedType(value) }
+      : undefined,
+  );
+}
+
 /** Only fixed messages and numeric HTTP status escape this boundary. No raw cause. */
 export class SamApiError extends Error {
   readonly code: SamErrorCode;
   readonly status?: number;
+  readonly diagnostic?: string;
 
-  constructor(code: SamErrorCode, status?: number) {
+  constructor(
+    code: SamErrorCode,
+    status?: number,
+    diagnostic?: SchemaDiagnostic,
+  ) {
     super(ERROR_MESSAGES[code]);
     this.name = "SamApiError";
     this.code = code;
     this.status = status;
+    this.diagnostic =
+      code === "schema" ? formatDiagnostic(diagnostic) : undefined;
   }
 }
 
@@ -97,19 +197,34 @@ export type SamSubscriberQuery = {
   usable?: boolean;
 };
 
-function record(value: unknown): Record<string, unknown> {
+function record(
+  value: unknown,
+  path?: DiagnosticPath,
+): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw new SamApiError("schema");
+    throw schemaIssue(path, "object", value);
   return value as Record<string, unknown>;
 }
 
-function text(value: unknown, maxLength = 256, allowEmpty = false): string {
+function text(
+  value: unknown,
+  maxLength = 256,
+  allowEmpty = false,
+  path?: DiagnosticPath,
+): string {
   if (
     typeof value !== "string" ||
     value.length > maxLength ||
     (!allowEmpty && !value.trim())
   )
-    throw new SamApiError("schema");
+    throw schemaIssue(
+      path,
+      allowEmpty ? "string" : "nonempty_string",
+      value,
+      typeof value === "string" && value.length > maxLength
+        ? "too_long"
+        : undefined,
+    );
   return value;
 }
 
@@ -117,6 +232,7 @@ function integer(
   value: unknown,
   min = 0,
   max = Number.MAX_SAFE_INTEGER,
+  path?: DiagnosticPath,
 ): number {
   if (
     typeof value !== "number" ||
@@ -124,13 +240,25 @@ function integer(
     value < min ||
     value > max
   )
-    throw new SamApiError("schema");
+    throw schemaIssue(
+      path,
+      max === 1000 ? "integer_1_to_1000" : "positive_integer",
+      value,
+      typeof value === "number" && Number.isSafeInteger(value) && value > max
+        ? "out_of_range"
+        : undefined,
+    );
   return value;
 }
 
-function rows(value: unknown): unknown[] {
+function rows(value: unknown, path?: DiagnosticPath): unknown[] {
   if (!Array.isArray(value) || value.length > MAX_ROWS)
-    throw new SamApiError("schema");
+    throw schemaIssue(
+      path,
+      "array",
+      value,
+      Array.isArray(value) ? "too_many_items" : undefined,
+    );
   return value;
 }
 
@@ -155,8 +283,11 @@ function campaignIdentifier(value: unknown): string {
   return id;
 }
 
-function providerResult(value: unknown): Record<string, unknown> {
-  const root = record(value);
+function providerResult(
+  value: unknown,
+  path?: DiagnosticPath,
+): Record<string, unknown> {
+  const root = record(value, path);
   const hasError =
     root.error !== undefined &&
     root.error !== null &&
@@ -248,6 +379,7 @@ export class SamClient {
   async #get(
     path: string,
     query?: Record<string, string>,
+    incomingDiagnostics = false,
   ): Promise<Record<string, unknown>> {
     const url = new URL(path, API_ROOT);
     for (const [key, value] of Object.entries(query ?? {}))
@@ -276,7 +408,10 @@ export class SamClient {
         await response.body?.cancel();
         throw httpError(response.status);
       }
-      return providerResult(await readJson(response));
+      return providerResult(
+        await readJson(response),
+        incomingDiagnostics ? "incoming.response" : undefined,
+      );
     };
     try {
       return await Promise.race([request(), deadline]);
@@ -347,26 +482,61 @@ export class SamClient {
     const value = await this.#get(
       `reporting/mo/${this.#accountId}/${timeRange}`,
       { Page: String(page) },
+      true,
     );
-    const result = record(value.result);
-    const actualPage = integer(result.page, 1);
-    const pageSize = integer(result.pageSize, 1, 1000);
-    if (actualPage !== page) throw new SamApiError("schema");
-    const messages = rows(result.mobileOriginatedMessages).map((item) => {
-      const message = record(item);
+    const result = record(value.result, "incoming.result");
+    const actualPage = integer(
+      result.page,
+      1,
+      Number.MAX_SAFE_INTEGER,
+      "incoming.result.page",
+    );
+    const pageSize = integer(
+      result.pageSize,
+      1,
+      1000,
+      "incoming.result.pageSize",
+    );
+    if (actualPage !== page)
+      throw schemaIssue(
+        "incoming.result.page",
+        "requested_page",
+        undefined,
+        "different_page",
+      );
+    const messages = rows(
+      result.mobileOriginatedMessages,
+      "incoming.result.mobileOriginatedMessages",
+    ).map((item) => {
+      const message = record(item, "incoming.message");
       return {
-        from: text(message.from, 64),
-        body: text(message.body, 65_536, true),
-        timestamp: text(message.timestamp, 128),
+        from: text(message.from, 64, false, "incoming.message.from"),
+        body: text(message.body, 65_536, true, "incoming.message.body"),
+        timestamp: text(
+          message.timestamp,
+          128,
+          false,
+          "incoming.message.timestamp",
+        ),
       };
     });
-    if (messages.length > pageSize) throw new SamApiError("schema");
+    if (messages.length > pageSize)
+      throw schemaIssue(
+        "incoming.result.mobileOriginatedMessages",
+        "at_most_page_size",
+        undefined,
+        "too_many_items",
+      );
     if (
       result.nextPage !== undefined &&
       result.nextPage !== null &&
       typeof result.nextPage !== "string"
     )
-      throw new SamApiError("schema");
+      throw schemaIssue(
+        "incoming.result.nextPage",
+        "string_or_null_or_missing",
+        result.nextPage,
+      );
     return {
       messages,
       page: actualPage,
