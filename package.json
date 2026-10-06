@@ -1,6 +1,6 @@
 {
   "name": "tm-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "expo-router/entry",
   "engines": {
     "node": ">=22.13.0"
@@ -40,7 +40,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/domain.test.ts",
+    "test": "tsx --test src/*.test.ts",
     "export": "expo export --platform all"
   },
   "private": true

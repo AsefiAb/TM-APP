@@ -1,0 +1,58 @@
+# SAM mobile experience
+
+The 0.2 design is a mobile companion for the current SAM AI workspace at `sam3.txhd.io`. Its purpose is to let a business owner finish common work quickly: prepare a campaign, handle inbox replies, and check billing. These tasks lead the experience; writing assistance is available within campaign creation.
+
+The authenticated web workspace informed the workflows. The app uses fictional data, local drafts, sample billing information, and offline template suggestions. It is not signed in to the user's SAM account and does not call a live AI, sending, or billing service.
+
+## Navigation and first use
+
+- **Home:** direct quick actions for campaigns, inbox, and billing, then unread conversations and work to resume. The optional getting-started guide supports the tasks without becoming the main screen; progress survives a restart and can be revisited.
+- **Campaigns:** find a draft, continue editing it, or start a new campaign. Editing updates the same record.
+- **Inbox:** find a conversation, read the thread, and save a demo reply. Replies to opted-out contacts remain blocked.
+- **Audience:** search contacts and inspect group membership and consent status.
+- **Billing:** the fifth primary destination, with clearly labeled sample account information. It helps the owner understand the billing layout without implying that the app has loaded an actual balance, invoice, or payment method.
+- **Settings:** available from the header so the five primary destinations remain easy to scan.
+
+Writer sits inside the message step, where assistance is useful. It offers three goals: Share an offer, Reconnect, and Send an update. Users can type directly, or supply details and choose a tone for an editable suggestion. Offline templates add framing, never an invented discount, deadline, business fact, or claim of a live AI response. The owner can complete the campaign workflow without using Writer.
+
+## Campaign flow
+
+1. **Message:** start from Writer or type directly. Use an editable suggested campaign name. Preserve the message when moving between steps.
+2. **Audience:** select a group and see how many subscribed contacts qualify. Opted-out contacts are excluded.
+3. **Review:** show the complete message, opt-out wording, audience count, timing, and estimated SMS segments before saving a local draft or schedule preview.
+
+The opt-out footer appears once. Segment estimates include that footer and account for Unicode characters. Saving a revised draft or schedule retains its ID and recalculates the audience using current consent. Sent sample campaigns cannot be rewritten. Local schedules do not execute.
+
+## Billing boundary
+
+Billing in this build is a demonstration of the owner's account view. Sample amounts, billing records, and statuses must be labeled as examples, not presented as the inspected account's real financial state. Interactions must not imply that a card was charged, a plan changed, or a payment succeeded. **Open SAM account settings** opens the verified `/account-settings` page in the full SAM website; it does not establish billing access in the app. The inspected web account did not expose a billing ledger, payment controls, or plan prices.
+
+Actual plan, balance, usage, invoice, and payment-method data require the approved SAM billing API or provider portal, authenticated owner permissions, and server-side tenant checks. Neither those native interfaces nor a payment flow has been verified. Live billing is separate integration work, alongside native sign-in and sending.
+
+## Completed browser verification
+
+The final web preview was exercised on October 6, 2026 using browser viewports of 390 × 844 and 320 × 740. These are browser checks, not physical-device or signed-native-build tests.
+
+Final desktop visual verification also passed at 1280 × 800, with the sidebar retaining its 250-pixel width after the scroll-layout fix.
+
+- Home displayed all five navigation tabs with the owner-focused layout.
+- A campaign was created from offline Writer details, targeted to VIP, reviewed, and named **Saturday hours**. Closing the edited composer opened the unsaved-changes guard; **Keep editing** retained the fields.
+- Saving the draft added one campaign. Reopening it, editing its content, and saving again retained a single matching campaign row and the VIP recipient count of 3.
+- An unfinished reply to fictional contact Olivia remained after closing and reopening the conversation and after the preview was restarted. Saving the demo reply appended the message and cleared its draft.
+- Fictional opted-out contact Daniel's conversation blocked reply controls.
+- Audience search for Olivia returned one result; the view remained usable at 320 pixels wide.
+- Billing opened with explicit not-connected status and sample credits. Its example-invoice sheet was clearly labeled and fit the 320-pixel viewport.
+- Dismissing the Home guide and reloading kept it hidden. **Settings → Show getting-started guide** returned to Home and restored the guide with its saved 3-of-3 completion state.
+
+TypeScript, lint, and all 23 automated tests passed. JavaScript export succeeded for iOS, Android, and web. Export verifies bundling; it does not produce signed store binaries or establish native behavior.
+
+## Remaining acceptance checks
+
+These checks remain pending and are not implied by the browser results above:
+
+- Complete a new campaign by typing directly without Writer, including navigation back through every step while retaining message, audience, and timing.
+- Verify inbox search and read/unread counts through their complete interaction sequence, including switching between multiple unfinished conversation drafts.
+- Verify both the Home billing shortcut and Billing navigation route, plus the external account-settings handoff.
+- Test keyboard avoidance, large text, safe areas, native back gestures, and VoiceOver/TalkBack on signed iOS and Android builds. No signed-native or physical-device testing has been completed.
+
+Automated helper tests cover faithful suggestions, footer duplication, final-body segment counts, title length, immutable draft edits, current consent counts, sent-campaign protection, reply draft handling, and valid saved guide state. Production authentication, live sending, inbox sync, billing, Writer behavior, notifications, and store submission require the separate [integration](INTEGRATION.md) and [release](RELEASE.md) work.

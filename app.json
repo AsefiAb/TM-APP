@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "Textmunication",
+    "name": "SAM AI by Textmunication",
     "slug": "textmunication-mobile",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Manage business conversations, contacts, and campaigns on the go.",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "textmunication",
     "userInterfaceStyle": "light",
-    "primaryColor": "#0B847E",
+    "primaryColor": "#7254E8",
     "githubUrl": "https://github.com/AsefiAb/TM-APP",
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
       "package": "com.textmunication.mobile",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#18212E",
+        "backgroundColor": "#7254E8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
@@ -28,9 +28,6 @@
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-router",
-      "expo-font"
-    ]
+    "plugins": ["expo-router", "expo-font"]
   }
 }

@@ -1,6 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
-  <title id="title">Textmunication concept app icon</title>
-  <path fill="#18212E" d="M0 0h1024v1024H0z"/>
-  <path fill="#D8F5E9" d="M386 238h252c82 0 140 58 140 140v207c0 80-58 139-140 139H436l-146 80V665c-38-25-60-66-60-116V378c0-82 58-140 156-140Z"/>
-  <path fill="#18212E" d="M439 334h86v80h97v78h-97v68c0 31 17 47 48 47h49v79h-57c-80 0-126-43-126-120v-74h-60v-78h60Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">SAM AI by Textmunication app icon</title>
+  <desc id="description">An original white sparkle with a magenta crescent and smaller pink sparkle on violet.</desc>
+  <path fill="#7254E8" d="M0 0h1024v1024H0z"/>
+  <g transform="translate(512 512) scale(1.14) translate(-512 -512)">
+    <path fill="#B8318B" d="M470 535C510 455 651 455 703 548C757 644 680 760 567 743C655 680 605 574 470 535Z"/>
+    <path fill="#fff" d="M470 310C504.32 478.75 509 490 626 535C509 580 504.32 591.25 470 760C435.68 591.25 431 580 314 535C431 490 435.68 478.75 470 310Z"/>
+    <path fill="#EAA0D6" d="M700 264C711.66 318 713.25 321.6 753 336C713.25 350.4 711.66 354 700 408C688.34 354 686.75 350.4 647 336C686.75 321.6 688.34 318 700 264Z"/>
+  </g>
 </svg>
