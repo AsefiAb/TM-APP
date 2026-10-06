@@ -77,12 +77,20 @@ const DIAGNOSTIC_OBSERVED = [
   "different_page",
   "too_many_items",
   "too_long",
+  "empty_array",
+  "nonempty_array",
 ] as const;
 type DiagnosticPath = (typeof DIAGNOSTIC_PATHS)[number];
 type SchemaDiagnostic = {
   path: DiagnosticPath;
   expected: (typeof DIAGNOSTIC_EXPECTED)[number];
   observed: (typeof DIAGNOSTIC_OBSERVED)[number];
+  shape?: readonly [
+    (typeof DIAGNOSTIC_OBSERVED)[number],
+    (typeof DIAGNOSTIC_OBSERVED)[number],
+    (typeof DIAGNOSTIC_OBSERVED)[number],
+    (typeof DIAGNOSTIC_OBSERVED)[number],
+  ];
 };
 
 function formatDiagnostic(value?: SchemaDiagnostic): string | undefined {
@@ -94,7 +102,14 @@ function formatDiagnostic(value?: SchemaDiagnostic): string | undefined {
     !DIAGNOSTIC_OBSERVED.includes(value.observed)
   )
     return undefined;
-  return `${value.path}: expected ${value.expected}; observed ${value.observed}.`;
+  const base = `${value.path}: expected ${value.expected}; observed ${value.observed}.`;
+  if (
+    !Array.isArray(value.shape) ||
+    value.shape.length !== 4 ||
+    !value.shape.every((item) => DIAGNOSTIC_OBSERVED.includes(item))
+  )
+    return base;
+  return `${base} Incoming shape: messages=${value.shape[0]}; page=${value.shape[1]}; pageSize=${value.shape[2]}; nextPage=${value.shape[3]}.`;
 }
 
 function observedType(value: unknown): SchemaDiagnostic["observed"] {
@@ -120,12 +135,13 @@ function schemaIssue(
   expected: SchemaDiagnostic["expected"],
   value: unknown,
   observed?: SchemaDiagnostic["observed"],
+  shape?: SchemaDiagnostic["shape"],
 ): SamApiError {
   return new SamApiError(
     "schema",
     undefined,
     path
-      ? { path, expected, observed: observed ?? observedType(value) }
+      ? { path, expected, observed: observed ?? observedType(value), shape }
       : undefined,
   );
 }
@@ -173,7 +189,7 @@ export type SamIncoming = { from: string; body: string; timestamp: string };
 export type SamIncomingPage = {
   messages: SamIncoming[];
   page: number;
-  pageSize: number;
+  pageSize: number | null;
   hasNextPage: boolean;
 };
 export type SamSubscriber = {
@@ -404,7 +420,12 @@ export class SamClient {
         cache: "no-store",
         signal: controller.signal,
       });
-      if (response.status !== 200) {
+      // The campaign-list service returns validated read results with HTTP 202.
+      // This exception does not apply to any write or other read endpoint.
+      if (
+        response.status !== 200 &&
+        !(path === "campaign/list" && response.status === 202)
+      ) {
         await response.body?.cancel();
         throw httpError(response.status);
       }
@@ -485,18 +506,60 @@ export class SamClient {
       true,
     );
     const result = record(value.result, "incoming.result");
-    const actualPage = integer(
-      result.page,
-      1,
-      Number.MAX_SAFE_INTEGER,
-      "incoming.result.page",
+    const messageRows = rows(
+      result.mobileOriginatedMessages,
+      "incoming.result.mobileOriginatedMessages",
     );
-    const pageSize = integer(
-      result.pageSize,
-      1,
-      1000,
-      "incoming.result.pageSize",
-    );
+    if (
+      result.nextPage !== undefined &&
+      result.nextPage !== null &&
+      typeof result.nextPage !== "string"
+    )
+      throw schemaIssue(
+        "incoming.result.nextPage",
+        "string_or_null_or_missing",
+        result.nextPage,
+      );
+    const hasNextPage =
+      typeof result.nextPage === "string" && result.nextPage.trim().length > 0;
+    const terminalEmpty = messageRows.length === 0 && !hasNextPage;
+    const shape: SchemaDiagnostic["shape"] = [
+      messageRows.length ? "nonempty_array" : "empty_array",
+      observedType(result.page),
+      observedType(result.pageSize),
+      observedType(result.nextPage),
+    ];
+    if (!terminalEmpty && result.page === undefined)
+      throw schemaIssue(
+        "incoming.result.page",
+        "positive_integer",
+        undefined,
+        undefined,
+        shape,
+      );
+    if (!terminalEmpty && result.pageSize === undefined)
+      throw schemaIssue(
+        "incoming.result.pageSize",
+        "integer_1_to_1000",
+        undefined,
+        undefined,
+        shape,
+      );
+    // Only an explicit terminal empty collection may omit pagination metadata.
+    // Null means no page-size metadata was provided; no size is invented.
+    const actualPage =
+      result.page === undefined && terminalEmpty
+        ? page
+        : integer(
+            result.page,
+            1,
+            Number.MAX_SAFE_INTEGER,
+            "incoming.result.page",
+          );
+    const pageSize =
+      result.pageSize === undefined && terminalEmpty
+        ? null
+        : integer(result.pageSize, 1, 1000, "incoming.result.pageSize");
     if (actualPage !== page)
       throw schemaIssue(
         "incoming.result.page",
@@ -504,10 +567,7 @@ export class SamClient {
         undefined,
         "different_page",
       );
-    const messages = rows(
-      result.mobileOriginatedMessages,
-      "incoming.result.mobileOriginatedMessages",
-    ).map((item) => {
+    const messages = messageRows.map((item) => {
       const message = record(item, "incoming.message");
       return {
         from: text(message.from, 64, false, "incoming.message.from"),
@@ -520,30 +580,18 @@ export class SamClient {
         ),
       };
     });
-    if (messages.length > pageSize)
+    if (pageSize !== null && messages.length > pageSize)
       throw schemaIssue(
         "incoming.result.mobileOriginatedMessages",
         "at_most_page_size",
         undefined,
         "too_many_items",
       );
-    if (
-      result.nextPage !== undefined &&
-      result.nextPage !== null &&
-      typeof result.nextPage !== "string"
-    )
-      throw schemaIssue(
-        "incoming.result.nextPage",
-        "string_or_null_or_missing",
-        result.nextPage,
-      );
     return {
       messages,
       page: actualPage,
       pageSize,
-      hasNextPage:
-        typeof result.nextPage === "string" &&
-        result.nextPage.trim().length > 0,
+      hasNextPage,
     };
   }
 

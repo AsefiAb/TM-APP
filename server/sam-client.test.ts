@@ -449,8 +449,20 @@ test("incoming diagnostics identify only fixed field paths and JSON type categor
       "incoming.result.page: expected requested_page; observed different_page.",
     ],
     [
-      { result: { ...validResult, pageSize: undefined } },
-      "incoming.result.pageSize: expected integer_1_to_1000; observed missing.",
+      {
+        result: {
+          ...validResult,
+          pageSize: undefined,
+          mobileOriginatedMessages: [
+            {
+              from: "PRIVATE_MARKER_PHONE",
+              body: "PRIVATE_MARKER_BODY",
+              timestamp: "PRIVATE_MARKER_TIME",
+            },
+          ],
+        },
+      },
+      "incoming.result.pageSize: expected integer_1_to_1000; observed missing. Incoming shape: messages=nonempty_array; page=positive_integer; pageSize=missing; nextPage=null.",
     ],
     [
       { result: { ...validResult, pageSize: 0 } },
@@ -531,4 +543,106 @@ test("diagnostic constructor rejects untrusted paths, expected types, and observ
     assert.equal(error.diagnostic, undefined);
     assert.doesNotMatch(JSON.stringify(error), /PRIVATE_MARKER/);
   }
+});
+
+test("HTTP 202 is accepted only for validated campaign-list reads", async () => {
+  const client = new SamClient(config, {
+    fetch: async () => json({ result: [campaign] }, 202),
+  });
+  assert.equal((await client.listCampaigns("PAST"))[0].id, "11");
+  assert.equal((await client.listCampaigns("SCHEDULED"))[0].id, "11");
+  const empty = new SamClient(config, {
+    fetch: async () => json({ result: [] }, 202),
+  });
+  assert.deepEqual(await empty.listCampaigns("PAST"), []);
+  const malformed = new SamClient(config, {
+    fetch: async () => json({ accepted: true }, 202),
+  });
+  await assert.rejects(malformed.listCampaigns("PAST"), errorCode("schema"));
+  const rejected = new SamClient(config, {
+    fetch: async () =>
+      json({ status: false, error: "must-not-return", result: [] }, 202),
+  });
+  await assert.rejects(rejected.listCampaigns("PAST"), errorCode("provider"));
+  const wrongRoute = new SamClient(config, {
+    fetch: async () => json(account, 202),
+  });
+  await assert.rejects(wrongRoute.getAccount(), errorCode("http", 202));
+});
+
+test("explicit terminal empty incoming collections can omit pagination without inventing page size", async () => {
+  assert.deepEqual(
+    await fixture({
+      result: { mobileOriginatedMessages: [] },
+    }).client.listIncoming(),
+    { messages: [], page: 1, pageSize: null, hasNextPage: false },
+  );
+  assert.deepEqual(
+    await fixture({
+      result: { mobileOriginatedMessages: [], nextPage: null },
+    }).client.listIncoming("today", 2),
+    { messages: [], page: 2, pageSize: null, hasNextPage: false },
+  );
+  assert.deepEqual(
+    await fixture({
+      result: { mobileOriginatedMessages: [], pageSize: 1000, nextPage: "" },
+    }).client.listIncoming(),
+    { messages: [], page: 1, pageSize: 1000, hasNextPage: false },
+  );
+  for (const result of [
+    { mobileOriginatedMessages: [], page: 0 },
+    { mobileOriginatedMessages: [], pageSize: 0 },
+    { mobileOriginatedMessages: [], page: null },
+    { mobileOriginatedMessages: [], pageSize: null },
+    { page: 1 },
+    { mobileOriginatedMessages: null },
+  ])
+    await assert.rejects(
+      fixture({ result }).client.listIncoming(),
+      errorCode("schema"),
+    );
+});
+
+test("nonempty incoming pages and continuation links still require pagination metadata", async () => {
+  const message = {
+    from: "PRIVATE_MARKER_PHONE",
+    body: "PRIVATE_MARKER_BODY",
+    timestamp: "PRIVATE_MARKER_TIME",
+  };
+  for (const result of [
+    { mobileOriginatedMessages: [message] },
+    { mobileOriginatedMessages: [message], page: 1 },
+    {
+      mobileOriginatedMessages: [],
+      nextPage: "https://example.invalid/PRIVATE_MARKER_NEXT",
+    },
+    {
+      mobileOriginatedMessages: [],
+      page: 1,
+      nextPage: "https://example.invalid/PRIVATE_MARKER_NEXT",
+    },
+  ])
+    await assert.rejects(fixture({ result }).client.listIncoming(), (error) => {
+      assert.ok(error instanceof SamApiError);
+      assert.equal(error.code, "schema");
+      assert.match(
+        error.diagnostic ?? "",
+        /Incoming shape: messages=(empty_array|nonempty_array); page=(missing|positive_integer); pageSize=missing; nextPage=(missing|string)\./,
+      );
+      assert.doesNotMatch(
+        JSON.stringify(error),
+        /PRIVATE_MARKER|example\.invalid/,
+      );
+      return true;
+    });
+  const forged = new SamApiError("schema", undefined, {
+    path: "incoming.result.page",
+    expected: "positive_integer",
+    observed: "missing",
+    shape: ["PRIVATE_MARKER_SECRET", "missing", "missing", "missing"],
+  } as never);
+  assert.equal(
+    forged.diagnostic,
+    "incoming.result.page: expected positive_integer; observed missing.",
+  );
 });
