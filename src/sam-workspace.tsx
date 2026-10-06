@@ -18,7 +18,7 @@ import {
   Conversation,
   markConversationRead,
 } from "./domain";
-import { CampaignGoal } from "./sam";
+import { CampaignGoal, CampaignSeed, campaignToSeed } from "./sam";
 import { BillingScreen } from "./billing";
 import { useDemo } from "./store";
 import { CampaignComposer } from "./campaign-composer";
@@ -86,7 +86,11 @@ const pageCopy = {
     "Your workspace, preferences, and a little help.",
   ],
 };
-type ComposerState = { initial?: Campaign; goal?: CampaignGoal } | null;
+type ComposerState = {
+  initial?: Campaign;
+  seed?: CampaignSeed;
+  goal?: CampaignGoal;
+} | null;
 
 export function Workspace({ tab }: { tab: Tab }) {
   const {
@@ -954,7 +958,9 @@ export function Workspace({ tab }: { tab: Tab }) {
             ? "Keep working on this idea?"
             : composer?.initial
               ? "Make it yours"
-              : "Create a campaign"
+              : composer?.seed
+                ? "Use again"
+                : "Create a campaign"
         }
         subtitle={
           discardConfirm
@@ -988,8 +994,12 @@ export function Workspace({ tab }: { tab: Tab }) {
         {composer && (
           <View style={discardConfirm ? { display: "none" } : undefined}>
             <CampaignComposer
-              key={composer.initial?.id || composer.goal || "blank"}
+              key={
+                composer.initial?.id ||
+                (composer.seed ? "reuse" : composer.goal || "blank")
+              }
               initial={composer.initial}
+              seed={composer.seed}
               goal={composer.goal}
               onDirtyChange={setComposerDirty}
               onSaved={saveComplete}
@@ -1038,13 +1048,19 @@ export function Workspace({ tab }: { tab: Tab }) {
               This campaign is sample history. It did not send from this app.
             </Text>
             <Button
-              title="Start a new campaign"
-              icon="plus"
+              title="Use again"
+              icon="rotate-ccw"
               onPress={() => {
                 setDetail(null);
-                create();
+                setComposerDirty(false);
+                setDiscardConfirm(false);
+                setComposer({ seed: campaignToSeed(detail) });
               }}
             />
+            <Text style={[ui.help, { textAlign: "center" }]}>
+              Start a new draft with this message. Review and edit before
+              saving.
+            </Text>
           </View>
         )}
       </Sheet>

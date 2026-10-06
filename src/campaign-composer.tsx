@@ -3,7 +3,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Campaign, getAudienceContacts, getSmsInfo } from "./domain";
 import {
   CampaignGoal,
+  CampaignSeed,
   WriterTone,
+  campaignToSeed,
   campaignTitle,
   saveCampaign,
   suggestMessage,
@@ -75,23 +77,33 @@ function displayDate(value: string) {
 
 export function CampaignComposer({
   initial,
+  seed,
   goal,
   onSaved,
   onDirtyChange,
 }: {
   initial?: Campaign;
+  seed?: CampaignSeed;
   goal?: CampaignGoal;
   onSaved: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { data, ready, update, completeGuide } = useDemo();
   const resetSheetScroll = useSheetScroll();
+  const startingValues = initial ?? seed;
   const [step, setStep] = useState(0);
-  const [body, setBody] = useState(() => editableMessage(initial?.body ?? ""));
-  const [name, setName] = useState(initial?.name ?? "");
-  const [audience, setAudience] = useState<Campaign["audience"]>(
-    initial?.audience ?? "All subscribers",
+  const [body, setBody] = useState(() =>
+    editableMessage(startingValues?.body ?? ""),
   );
+  const [name, setName] = useState(startingValues?.name ?? "");
+  const [audience, setAudience] = useState<Campaign["audience"]>(
+    startingValues?.audience ?? "All subscribers",
+  );
+  const [pastOpen, setPastOpen] = useState(false);
+  const [reusing, setReusing] = useState(Boolean(seed));
+  const pastCampaigns = data.campaigns
+    .filter((campaign) => campaign.status === "sent")
+    .slice(0, 5);
   const [writerOpen, setWriterOpen] = useState(Boolean(goal));
   const [writerGoal, setWriterGoal] = useState<CampaignGoal>(
     goal ?? "promotion",
@@ -116,6 +128,7 @@ export function CampaignComposer({
   );
 
   const dirty =
+    reusing ||
     body !== editableMessage(initial?.body ?? "") ||
     name !== (initial?.name ?? "") ||
     audience !== (initial?.audience ?? "All subscribers") ||
@@ -308,6 +321,90 @@ export function CampaignComposer({
               One clear message. One easy next step for your customer.
             </Text>
           </View>
+
+          {!initial &&
+            !reusing &&
+            !body.trim() &&
+            !writerOpen &&
+            pastCampaigns.length > 0 && (
+              <View style={styles.reuseCard}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Use a past message"
+                  accessibilityState={{ expanded: pastOpen }}
+                  onPress={() => setPastOpen(!pastOpen)}
+                  style={styles.reuseToggle}
+                >
+                  <Icon name="rotate-ccw" color={C.primary} size={21} />
+                  <View style={ui.grow}>
+                    <Text style={styles.optionTitle}>Use a past message</Text>
+                    <Text style={ui.help}>
+                      Less typing. A fresh version of your own words.
+                    </Text>
+                  </View>
+                  <Icon
+                    name={pastOpen ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color={C.primary}
+                  />
+                </Pressable>
+                {pastOpen && (
+                  <View style={styles.reuseList}>
+                    <Text style={ui.help}>
+                      Recent sent campaigns · sample history
+                    </Text>
+                    {pastCampaigns.map((campaign) => (
+                      <Pressable
+                        key={campaign.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Reuse ${campaign.name}`}
+                        onPress={() => {
+                          const copy = campaignToSeed(campaign);
+                          setBody(editableMessage(copy.body));
+                          setName(copy.name);
+                          setAudience(copy.audience);
+                          setReusing(true);
+                          setPastOpen(false);
+                          setMessageError("");
+                          resetSheetScroll();
+                        }}
+                        style={({ pressed }) => [
+                          styles.reuseItem,
+                          pressed && { backgroundColor: C.lilac },
+                        ]}
+                      >
+                        <View style={ui.grow}>
+                          <Text style={styles.optionTitle} numberOfLines={2}>
+                            {campaign.name}
+                          </Text>
+                          <Text style={ui.help} numberOfLines={2}>
+                            {editableMessage(campaign.body)}
+                          </Text>
+                        </View>
+                        <Icon
+                          name="arrow-up-right"
+                          color={C.primary}
+                          size={18}
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+          {reusing && (
+            <View style={styles.reuseNote}>
+              <Icon name="rotate-ccw" color={C.primary} size={18} />
+              <View style={ui.grow}>
+                <Text style={styles.optionTitle}>Make it fresh</Text>
+                <Text style={ui.help}>
+                  Check dates, prices, and offer details. You’ll review the
+                  audience and timing next.
+                </Text>
+              </View>
+            </View>
+          )}
 
           <Input
             label="Your message"
@@ -723,6 +820,37 @@ function TimingOption({
 }
 
 const styles = StyleSheet.create({
+  reuseCard: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 16,
+    backgroundColor: C.white,
+    overflow: "hidden",
+  },
+  reuseToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    minHeight: 72,
+  },
+  reuseList: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+  reuseItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingVertical: 15,
+  },
+  reuseNote: {
+    backgroundColor: C.lilac,
+    borderRadius: 14,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 11,
+  },
   root: { gap: 24 },
   progress: {
     flexDirection: "row",

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSeedData, getSmsInfo, isAppData } from "./domain";
 import {
+  campaignToSeed,
   campaignTitle,
   defaultGuide,
   goals,
@@ -90,6 +91,76 @@ test("suggested campaign titles stay within 60 characters without splitting Unic
   assert.ok(title.length <= 60);
   assert.ok(title.endsWith("..."));
   assert.equal(title.replaceAll("🙂", ""), "...");
+});
+
+test("reusing a campaign copies editable content without its identity or delivery history", () => {
+  const original = createSeedData().campaigns[0];
+  const snapshot = structuredClone(original);
+  const seed = campaignToSeed(original);
+  assert.deepEqual(seed, {
+    name: `${original.name} (copy)`,
+    body: original.body,
+    audience: original.audience,
+  });
+  seed.name = "A revised offer";
+  seed.body = "A different message.";
+  seed.audience = "Members";
+  assert.deepEqual(original, snapshot);
+});
+
+test("copied names keep their suffix within 80 UTF-16 units without splitting code points", () => {
+  const original = createSeedData().campaigns[0];
+  for (const [name, expected] of [
+    ["a".repeat(80), `${"a".repeat(73)} (copy)`],
+    ["🙂".repeat(40), `${"🙂".repeat(36)} (copy)`],
+    [`${"a".repeat(72)}🙂more`, `${"a".repeat(72)} (copy)`],
+  ]) {
+    const seed = campaignToSeed({ ...original, name });
+    assert.equal(seed.name, expected);
+    assert.ok(seed.name.length <= 80);
+    assert.ok(seed.name.endsWith(" (copy)"));
+  }
+});
+
+test("reusing sent and scheduled campaigns saves independent drafts with no inherited schedule or metrics", () => {
+  const sentData = createSeedData();
+  const scheduledData = saveCampaign(createSeedData(), {
+    name: "An upcoming update",
+    body: "New classes are available.",
+    audience: "Members",
+    scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  for (const data of [sentData, scheduledData]) {
+    const source = data.campaigns[0];
+    const snapshot = structuredClone(data);
+    const updated = saveCampaign(data, campaignToSeed(source));
+    const copy = updated.campaigns[0];
+    assert.notEqual(copy.id, source.id);
+    assert.equal(copy.status, "draft");
+    assert.equal(copy.body, source.body);
+    assert.equal(copy.audience, source.audience);
+    assert.equal(copy.name, `${source.name} (copy)`);
+    for (const key of ["scheduledAt", "delivered", "replies"]) {
+      assert.equal(Object.hasOwn(copy, key), false);
+    }
+    assert.equal(updated.campaigns.length, data.campaigns.length + 1);
+    assert.equal(updated.campaigns[1], source);
+    assert.deepEqual(data, snapshot);
+    assert.equal(isAppData(updated), true);
+  }
+});
+
+test("reused drafts recalculate subscribed recipients instead of copying stale campaign counts", () => {
+  const data = createSeedData();
+  const source = data.campaigns[0];
+  source.recipients = 999;
+  data.contacts[0].consent = "unsubscribed";
+  const snapshot = structuredClone(data);
+  const updated = saveCampaign(data, campaignToSeed(source));
+  assert.equal(updated.campaigns[0].recipients, 2);
+  assert.equal(source.recipients, 999);
+  assert.deepEqual(data, snapshot);
+  assert.equal(isAppData(updated), true);
 });
 
 test("editing a draft preserves its identity and order without creating duplicates", () => {

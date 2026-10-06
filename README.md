@@ -27,6 +27,7 @@ The project includes `expo-dev-client`; the recommended device path is an EAS de
 - An owner-focused Home with quick actions for campaigns, inbox, and billing, followed by items needing attention and a short optional getting-started guide.
 - Writing assistance inside campaign creation: offer, reconnection, and update starters plus tone choices. Suggestions use the details you supply and remain editable; the interface identifies this as offline template assistance.
 - A three-step SMS composer: Message, Audience, and Review, with suggested campaign names, subscribed-audience counts, opt-out text, and GSM/Unicode segment estimates.
+- **Use again:** reuse a past campaign from its details or choose **Use a past message** in a blank composer. The copy starts at Message with editable text and name, a reminder to check dates and offers, and a fresh audience review. It becomes a separate local draft only when saved; old schedules and results are not copied.
 - Editable local drafts and schedule previews in the device's time zone. Draft edits preserve campaign identity; schedules **do not execute**.
 - Searchable inbox, read/unread tracking, locally saved replies, and opted-out recipient blocking.
 - Searchable contact groups, subscription status, and contact details.

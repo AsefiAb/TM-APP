@@ -17,11 +17,13 @@ Writer sits inside the message step, where assistance is useful. It offers three
 
 ## Campaign flow
 
-1. **Message:** start from Writer or type directly. Use an editable suggested campaign name. Preserve the message when moving between steps.
+1. **Message:** type directly, use Writer, or expand **Use a past message** to choose from recent sent campaigns. **Use again** in a sent campaign's details opens the same flow. Copied messages start here so the owner can update dates, prices, and offers. Preserve the message when moving between steps.
 2. **Audience:** select a group and see how many subscribed contacts qualify. Opted-out contacts are excluded.
 3. **Review:** show the complete message, opt-out wording, audience count, timing, and estimated SMS segments before saving a local draft or schedule preview.
 
 The opt-out footer appears once. Segment estimates include that footer and account for Unicode characters. Saving a revised draft or schedule retains its ID and recalculates the audience using current consent. Sent sample campaigns cannot be rewritten. Local schedules do not execute.
+
+Reusing a campaign carries only its message, audience choice, and editable name with a **(copy)** suffix. The new draft receives its own identity on save; original delivery results, schedules, and recipient totals are not carried forward. Current consent determines the new recipient count. Closing a reused message before saving invokes the existing unsaved-changes guard. This shortcut adds no navigation destination or live sending operation.
 
 ## Billing boundary
 
@@ -45,6 +47,12 @@ Final desktop visual verification also passed at 1280 × 800, with the sidebar r
 - Dismissing the Home guide and reloading kept it hidden. **Settings → Show getting-started guide** returned to Home and restored the guide with its saved 3-of-3 completion state.
 
 TypeScript, lint, and all 23 automated tests passed. JavaScript export succeeded for iOS, Android, and web. Export verifies bundling; it does not produce signed store binaries or establish native behavior.
+
+### Campaign reuse verification
+
+The **Use again** improvement was checked on October 6, 2026 at 390 × 844, 320 × 740, and 1280 × 800 browser sizes. Both entry points opened the existing Message → Audience → Review flow. Choosing a past message filled its text and audience; an edited copy saved as a new draft with its own name, no schedule, and one opt-out footer. Reloading preserved that draft alongside the unchanged sent original. Closing either a picker-created copy or a directly reused message showed the unsaved-changes guard; **Keep editing** retained the message. The picker remained collapsed in a fresh blank composer.
+
+All 13 campaign-helper tests passed, including four new reuse regressions for independent identity, source preservation, discarded scheduling/results, current consent counts, and Unicode-safe names. TypeScript, lint, and iOS/Android/web bundle exports passed. No browser errors were reported during this walkthrough. Native-device testing remains pending.
 
 ## Remaining acceptance checks
 

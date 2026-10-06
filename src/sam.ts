@@ -2,6 +2,7 @@ import { AppData, Campaign, createCampaign } from "./domain";
 
 export type CampaignGoal = "promotion" | "reengage" | "update";
 export type WriterTone = "friendly" | "concise" | "energetic";
+export type CampaignSeed = Pick<Campaign, "name" | "body" | "audience">;
 
 export const goals: {
   id: CampaignGoal;
@@ -101,6 +102,21 @@ export function campaignTitle(body: string): string {
     title += character;
   }
   return `${title.trimEnd()}...`;
+}
+
+/** Reuse content only; saving this seed creates a new, unscheduled draft. */
+export function campaignToSeed(campaign: Campaign): CampaignSeed {
+  const suffix = " (copy)";
+  let name = "";
+  for (const character of campaign.name.trim()) {
+    if (name.length + character.length > 80 - suffix.length) break;
+    name += character;
+  }
+  return {
+    name: `${name.trimEnd()}${suffix}`,
+    body: campaign.body,
+    audience: campaign.audience,
+  };
 }
 
 type SaveCampaignInput = {
