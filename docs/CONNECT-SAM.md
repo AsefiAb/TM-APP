@@ -4,15 +4,17 @@ The repository has a server-side API adapter and a read-only connection check th
 
 ## Verified connection
 
-[GitHub run 37542082054](https://github.com/AsefiAb/TM-APP/actions/runs/37542082054) succeeded on October 6, 2026 at commit `98669b7`: all six checks passed for account information, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first subscriber page of one group. Authentication and those sampled reads are verified. No SMS was sent.
+[GitHub run 37544172541](https://github.com/AsefiAb/TM-APP/actions/runs/37544172541) succeeded on October 6, 2026 at commit `08b743b`: all six checks passed for account information, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first subscriber page of one group. Authentication and those sampled reads are verified. No SMS was sent.
 
-The account returned no sender number, so sending still needs provisioning. Empty and sampled responses do not verify populated pagination, a complete synchronized inbox, customer sign-in, merchant billing, or live Writer. The mobile app remains a demo. The credentials stayed in GitHub secrets; they were not copied locally or embedded in the mobile app.
+The account now lists a provisioned sender entry, resolving the earlier missing-sender observation. A listed entry does not establish outbound SMS permission or delivery. Empty and sampled responses do not verify populated pagination, a complete synchronized inbox, customer sign-in, merchant billing, or live Writer. The mobile app remains a demo. The credentials stayed in GitHub secrets; they were not copied locally or embedded in the mobile app.
 
 ## Your next steps
 
-1. Ask the SAM team to enable a sender number for this account and confirm production message limits.
-2. Obtain the approved customer sign-in/session contract so the deployed backend can connect each business to the phone app.
-3. Obtain the merchant billing contract for plans, credits, invoices, and account-management access. The app's Billing screen still uses sample information.
+1. Ask your SAM developer how the mobile app should sign a business owner in and retrieve that business's plan, credits, and invoices. Share those API documents or an integration contact; the reviewed API v1 documentation does not cover these features.
+2. Confirm where Textmunication wants the app's backend hosted. GitHub secrets protect the connection checker, but a running backend is still needed to connect the phone app safely.
+3. For a later sending test, confirm the listed sender supports outbound SMS and the production message limits. Designate one consenting test recipient and approve the exact test message before any send. Sending code is not yet implemented.
+
+No additional GitHub secrets are needed for the current read checks.
 
 ## Run the check again or change API access
 
@@ -41,7 +43,7 @@ If account access fails, the remaining checks are skipped. Authentication and ra
 
 ## What the SAM team still needs to provide
 
-- Resolve the account-not-provisioned message and absence of a sender number. Sampled API v1 read access has already passed.
+- Confirm outbound SMS capability and production message limits for the now-listed sender. Sampled API v1 read access has already passed; sending and delivery have not been tested.
 - Provide the approved customer sign-in/session contract for the native app.
 - Provide the merchant billing contract for plan, credits, invoices, and any account-management portal. Subscriber/member CRM billing fields are not the business owner's SAM billing.
 

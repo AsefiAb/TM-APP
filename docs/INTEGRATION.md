@@ -12,7 +12,7 @@ The SAM workspace exposes API information and an SSO link. Keys remained masked;
 
 Profile → Account settings was verified at `https://sam3.txhd.io/account-settings`. Its Account & Billing area exposed Account Information, API Information, and Users. No billing ledger, payment controls, or plan pricing was visible for the inspected unprovisioned account. The mobile link is therefore labeled **Open SAM account settings** and targets that verified page; it does not claim to open an observed payment portal. No private account data was retained.
 
-**Current SAM provisioning dependency:** opening Send Campaign on `sam3.txhd.io/campaigns` displayed an account-not-provisioned message requiring support assistance. This was observed in the new SAM workspace, not inferred from the earlier platform. Resolve it with Textmunication support before an end-to-end sending test. No customer message was sent during the walkthrough.
+**Provisioning observations:** the initial walkthrough's Send Campaign control on `sam3.txhd.io/campaigns` displayed an account-not-provisioned message requiring support assistance. The later API check in run `37544172541` now lists a provisioned sender entry. The campaign UI has not been rechecked; an entry alone does not establish outbound SMS permission or delivery. Confirm sender capability before an authorized end-to-end sending test. No customer message was sent.
 
 This repository records generic workflow observations only. Private account identifiers, contact names, customer messages, credentials, and account metrics remain outside the source and documentation.
 
@@ -60,7 +60,7 @@ This is implemented integration groundwork, not a deployed mobile backend. The n
 
 ### Live read verification — October 6, 2026
 
-[GitHub Actions run 37542082054](https://github.com/AsefiAb/TM-APP/actions/runs/37542082054) succeeded at commit `98669b7`. All six checks passed: account information, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first subscriber page of one existing group. Output stayed sanitized. The account returned no sender number; resolve sender provisioning before any delivery test. No SMS was sent.
+[GitHub Actions run 37544172541](https://github.com/AsefiAb/TM-APP/actions/runs/37544172541) succeeded at commit `08b743b`. All six checks passed: account information, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first subscriber page of one existing group. Output stayed sanitized. The account now lists a provisioned sender entry, whereas the earlier successful run `37542082054` returned none. The checker tests only whether `provisionedCodes` is nonempty; it does not establish outbound SMS capability, registration, or delivery. No SMS was sent.
 
 The successful run followed two local adapter corrections: accepting HTTP 202 specifically for campaign lists after response JSON validation, and accepting an explicitly terminal empty incoming-message collection without pagination metadata or an invented page size. Earlier checker failures reflected these compatibility gaps, not established failures of SAM's external service. All 52 local tests, TypeScript checking, and lint passed after the changes.
 
@@ -120,7 +120,7 @@ Start with authenticated read-only account and invoice data. Enforce billing per
 
 ## Delivery sequence
 
-1. **Complete account setup:** the SAM3 walkthrough, documentation review, server read adapter, and six live read checks are complete. Resolve the missing sender number and confirm production limits. Obtain the separate native sign-in, merchant billing, and Writer contracts. Rerun **Check SAM API connection** on `main` when API access changes; it does not establish sending or mobile sign-in. The user enters credentials through the service's own login interface.
+1. **Complete account setup:** the SAM3 walkthrough, documentation review, server read adapter, and six live read checks are complete. A provisioned sender is now listed; confirm outbound SMS capability and production limits. Obtain the separate native sign-in, merchant billing, and Writer contracts and a business-controlled backend hosting target. Rerun **Check SAM API connection** on `main` when API access changes; it does not establish sending or mobile sign-in. The user enters credentials through the service's own login interface.
 2. **Read-only staging:** implement sign-in, tenant authorization, inbox, contact/consent, campaign reporting, and owner-scoped billing adapters. Verify pagination, empty states, permission failures, expiry, and network recovery with synthetic data.
 3. **Controlled sending:** add preview and explicit confirmation, server consent checks, idempotent jobs, webhook reconciliation and audit records. Test only with designated consenting test recipients.
 4. **Pilot:** enable a small authorized group, monitoring, incident ownership and a server-side send kill switch. Verify account deletion, session revocation and tenant isolation.
