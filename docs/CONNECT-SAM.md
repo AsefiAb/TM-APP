@@ -2,7 +2,21 @@
 
 The repository has a server-side API adapter and a read-only connection check that runs from GitHub. You do not need a local credentials file for this setup. The mobile app still opens its demo; completing the check will not sign the app in, send messages, or connect billing.
 
+## Verified connection
+
+[GitHub run 37542082054](https://github.com/AsefiAb/TM-APP/actions/runs/37542082054) succeeded on October 6, 2026 at commit `98669b7`: all six checks passed for account information, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first subscriber page of one group. Authentication and those sampled reads are verified. No SMS was sent.
+
+The account returned no sender number, so sending still needs provisioning. Empty and sampled responses do not verify populated pagination, a complete synchronized inbox, customer sign-in, merchant billing, or live Writer. The mobile app remains a demo. The credentials stayed in GitHub secrets; they were not copied locally or embedded in the mobile app.
+
 ## Your next steps
+
+1. Ask the SAM team to enable a sender number for this account and confirm production message limits.
+2. Obtain the approved customer sign-in/session contract so the deployed backend can connect each business to the phone app.
+3. Obtain the merchant billing contract for plans, credits, invoices, and account-management access. The app's Billing screen still uses sample information.
+
+## Run the check again or change API access
+
+The two repository secrets are already configured for the verified run. Use these instructions when updating access or setting up another authorized deployment:
 
 1. **Save two GitHub secrets.** In [TM-APP repository settings](https://github.com/AsefiAb/TM-APP/settings/secrets/actions), open **Secrets and variables → Actions → New repository secret**. Add the two names below using the corresponding values from SAM → Account settings → API Information. Do not substitute your website password.
 2. **Run the check.** Open the repository's **Actions → Check SAM API connection → Run workflow**, select **main**, and run it. This manual workflow checks the documented read endpoints; it does not send, schedule, edit, or delete a campaign.
@@ -17,17 +31,17 @@ The authorization value can include `Basic ` or be the bare base64 value; the ch
 
 Keep credentials in GitHub's secret-value fields, not in chat, repository files, workflow text, or an `EXPO_PUBLIC_*` variable. The workflow passes the two secrets only to the connection-check step; dependency installation, ordinary tests, and app exports do not receive them.
 
-No secret values have been added and no live check has been completed by this implementation. Local tests use simulated provider responses and cannot establish that the real account can send.
+The adapter changes also passed 52 local tests, TypeScript checking, and lint. Those tests use simulated provider responses and are distinct from the successful live read check above; neither establishes that the real account can send.
 
 ## What the checker reads
 
-The GitHub workflow runs `npm run api:check`. It checks account information, audience groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first 10 usable subscribers from the first existing group. It prints only `PASS`, `FAIL`, or `SKIPPED` with feature labels and static guidance; it does not print account identifiers, names, message bodies, counts, credentials, or raw provider errors.
+The GitHub workflow runs `npm run api:check`. It checks account information, audience groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first 10 usable subscribers from the first existing group. It prints `PASS`, `FAIL`, or `SKIPPED` with feature labels, static guidance, and safe HTTP-status or field-type diagnostics when needed. It does not print account identifiers, names, message bodies, counts, credentials, or raw provider errors.
 
 If account access fails, the remaining checks are skipped. Authentication and rate-limit failures stop subsequent requests. Contacts are skipped when no existing group is available. The final line explicitly leaves sending, customer sign-in, billing, live Writer, and complete inbox synchronization **not tested**. Even six passes do not connect the mobile demo or certify production readiness.
 
 ## What the SAM team still needs to provide
 
-- Confirm API v1 access and resolve the account-not-provisioned message seen in the SAM campaign screen.
+- Resolve the account-not-provisioned message and absence of a sender number. Sampled API v1 read access has already passed.
 - Provide the approved customer sign-in/session contract for the native app.
 - Provide the merchant billing contract for plan, credits, invoices, and any account-management portal. Subscriber/member CRM billing fields are not the business owner's SAM billing.
 
@@ -41,7 +55,7 @@ Those are the remaining account and service dependencies. The [integration plan]
 
 `.github/workflows/sam-api-check.yml` is manually triggered and restricted to `main`. It supplies `SAM_ACCOUNT_ID` and `SAM_AUTHORIZATION` from repository secrets only to the check step. It does not run automatically for pushes or pull requests and does not deploy a backend.
 
-The connection check must remain read-only. Campaign creation/sending, scheduled-campaign changes, cancellation, and direct replies are documented provider capabilities, but are not implemented as live operations by this read adapter. No external endpoint failure has been observed or repaired.
+The connection check remains read-only. Campaign creation/sending, scheduled-campaign changes, cancellation, and direct replies are documented provider capabilities, but are not implemented as live operations by this read adapter. Live verification exposed two adapter compatibility issues that were corrected: campaign lists accept HTTP 202 only when their response JSON validates, and explicitly terminal empty incoming-message collections may omit pagination metadata without inventing a page size. These were local adapter fixes, not repairs to SAM's external service.
 
 The mobile application does not import the server adapter. Connecting the app requires a deployed backend, approved customer authentication, business-scoped authorization, and mobile-safe response models. GitHub secrets make credentials available to this diagnostic workflow; they do not configure a running backend or connect the phone app. Configure the deployed backend's secret storage separately when that service exists.
 

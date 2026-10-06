@@ -35,7 +35,7 @@ The complete rendered official [Textmunication API v1 documentation](https://txh
 | Account information         | `GET /account/info/{accountId}`; includes `authToken`, `ssoUrl`, and `provisionedCodes`                                                                 |
 | Incoming/delivery webhooks  | `POST /account/webhooks/insertupdate/:accountId`; supports `MO` and `DR`, with an optional token                                                        |
 
-These are documented capabilities, not successful tests against the user's SAM3 account. No authenticated provider API call was made, no message was sent, and account entitlement, sender configuration, schedule timezone, error behavior, and live SAM3 compatibility still need verification.
+These are documented capabilities. The six read operations listed in the live verification below have now passed against this SAM3 account. No message was sent; campaign mutations, reports beyond the sampled lists, webhook delivery, sending entitlement, schedule timezone, and production delivery behavior remain unverified.
 
 ### What the documentation does not establish
 
@@ -52,11 +52,19 @@ The repository now contains `server/sam-client.ts`, a server-only API v1 adapter
 
 The owner setup uses GitHub repository secrets named `SAM_ACCOUNT_ID` and `SAM_AUTHORIZATION`, populated from the corresponding SAM API Information fields. The workflow passes them as environment values only to its read-only check step; install, ordinary test, and export steps do not receive them. The authorization value accepts the complete copied Basic header or its bare base64 value. `server/config.ts` does not derive credentials from a guessed username/password pair. Optional local development can use the Git-ignored `server/.env.local`, but the owner does not need that file. The CLI checks six reads: account, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first 10 usable subscribers of the first existing group. A usable subscriber response is not proof of consent to send.
 
-Output is limited to status labels and static guidance, with no account identifiers, names, message bodies, counts, credentials, or raw provider errors. Failed account access skips the other checks; authentication and rate-limit failures stop subsequent requests; no available group leaves contacts skipped. Exit codes are `0` for all six passing, `1` for failure, and `2` for a skipped check without a failure. The final summary explicitly leaves sending, native sign-in, billing, live Writer, and full inbox sync untested.
+Output is limited to status labels, static guidance, and safe HTTP-status or field-type diagnostics, with no account identifiers, names, message bodies, counts, credentials, or raw provider errors. Failed account access skips the other checks; authentication and rate-limit failures stop subsequent requests; no available group leaves contacts skipped. Exit codes are `0` for all six passing, `1` for failure, and `2` for a skipped check without a failure. The final summary explicitly leaves sending, native sign-in, billing, live Writer, and full inbox sync untested.
 
-The adapter fixes the provider origin, rejects redirects, times out requests, and does not automatically retry. Account information is projected through an allowlist that excludes provider credentials and SSO URLs. Adapter tests use simulated responses; no live credential or authenticated API check has been used to verify this SAM3 account.
+The adapter fixes the provider origin, rejects redirects, times out requests, and does not automatically retry. Account information is projected through an allowlist that excludes provider credentials and SSO URLs. Simulated-response tests check local behavior separately from the live verification below.
 
-This is implemented integration groundwork, not a deployed mobile backend or a repair to a confirmed external endpoint failure. The native app still uses local fictional data. Sending, campaign mutations, native customer authentication, billing, and live Writer remain outside the read adapter. GitHub repository secrets configure this manual diagnostic workflow, not a runtime backend or the phone app. A deployed service will need its own secret storage, never Expo public variables or an app-bundled key. No secret values have been added and no live API check has been performed by this implementation.
+This is implemented integration groundwork, not a deployed mobile backend. The native app still uses local fictional data. Sending, campaign mutations, native customer authentication, billing, and live Writer remain outside the read adapter. GitHub repository secrets configure this manual diagnostic workflow, not a runtime backend or the phone app. Credentials remained in GitHub secrets and were not copied locally or embedded in the mobile app. A deployed service will need its own secret storage, never Expo public variables or an app-bundled key.
+
+### Live read verification — October 6, 2026
+
+[GitHub Actions run 37542082054](https://github.com/AsefiAb/TM-APP/actions/runs/37542082054) succeeded at commit `98669b7`. All six checks passed: account information, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first subscriber page of one existing group. Output stayed sanitized. The account returned no sender number; resolve sender provisioning before any delivery test. No SMS was sent.
+
+The successful run followed two local adapter corrections: accepting HTTP 202 specifically for campaign lists after response JSON validation, and accepting an explicitly terminal empty incoming-message collection without pagination metadata or an invented page size. Earlier checker failures reflected these compatibility gaps, not established failures of SAM's external service. All 52 local tests, TypeScript checking, and lint passed after the changes.
+
+This verifies authentication and the sampled read shapes. Empty and sampled responses do not prove populated multi-page data, complete inbox synchronization, cross-business production authorization, native customer login, merchant billing, live Writer, or sending. The app remains a local demo until its authenticated backend and mobile data integration are implemented.
 
 ## Proposed connected architecture — not a deployed service
 
@@ -112,7 +120,7 @@ Start with authenticated read-only account and invoice data. Enforce billing per
 
 ## Delivery sequence
 
-1. **Verify configured read access:** the SAM3 walkthrough, documentation review, and server read-adapter implementation are complete. Add the two authorized API values as GitHub repository secrets, then manually run **Check SAM API connection** on `main`. A successful read check does not establish sending or mobile sign-in. Confirm sender provisioning and production limits; obtain the separate native sign-in, merchant billing, and Writer contracts. The user enters credentials through the service's own login interface.
+1. **Complete account setup:** the SAM3 walkthrough, documentation review, server read adapter, and six live read checks are complete. Resolve the missing sender number and confirm production limits. Obtain the separate native sign-in, merchant billing, and Writer contracts. Rerun **Check SAM API connection** on `main` when API access changes; it does not establish sending or mobile sign-in. The user enters credentials through the service's own login interface.
 2. **Read-only staging:** implement sign-in, tenant authorization, inbox, contact/consent, campaign reporting, and owner-scoped billing adapters. Verify pagination, empty states, permission failures, expiry, and network recovery with synthetic data.
 3. **Controlled sending:** add preview and explicit confirmation, server consent checks, idempotent jobs, webhook reconciliation and audit records. Test only with designated consenting test recipients.
 4. **Pilot:** enable a small authorized group, monitoring, incident ownership and a server-side send kill switch. Verify account deletion, session revocation and tenant isolation.
