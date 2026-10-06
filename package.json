@@ -40,7 +40,8 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/*.test.ts",
+    "test": "tsx --test src/*.test.ts server/*.test.ts",
+    "api:check": "tsx server/check-sam.ts",
     "export": "expo export --platform all"
   },
   "private": true

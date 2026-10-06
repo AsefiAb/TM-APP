@@ -22,18 +22,18 @@ Textmunication's public [Solutions](https://www.textmunication.com/solutions), [
 
 The complete rendered official [Textmunication API v1 documentation](https://txhd.io/api/v1/docs/) was successfully read in the browser on October 6, 2026. This supersedes the earlier search-index-only evidence; an HTTP 403 from another retrieval tool did not prevent direct browser review. The documentation specifies **Basic authorization**. The table below uses paths relative to `https://txhd.io/api/v1`.
 
-| Mobile capability | Documented API v1 route and contract |
-| --- | --- |
-| Create/send a campaign | `POST /campaign/create/send`; documented fields include `name`, `body`, `type` (`IMMEDIATE` or `SCHEDULED`), `groupIds`, `from`, and `scheduledTime` |
-| Modify a scheduled campaign | `POST /campaign/modifycampaign?source=api` |
-| Cancel a scheduled campaign | `POST /campaign/deletecampaign/{id}` |
-| Campaign list and reporting | `GET /campaign/list?filter=PAST` or `SCHEDULED`; `GET /campaign/getCampaignReport/{campaignId}` |
-| Direct SMS/reply | `POST /text/send` |
-| Incoming messages | `GET /reporting/mo/:accountId/{timeRange}` with documented `Page` parameter; `result.mobileOriginatedMessages` contains `from`, `body`, and `timestamp` |
-| Audience groups | `GET /reporting/groups/:accountId` |
-| Subscribers | `GET /reporting/subscriber/getsubscribers/:accountId`; supports `groupId`, `page`, `pageSize` from 10 to 1000, and `usable` |
-| Account information | `GET /account/info/{accountId}`; includes `authToken`, `ssoUrl`, and `provisionedCodes` |
-| Incoming/delivery webhooks | `POST /account/webhooks/insertupdate/:accountId`; supports `MO` and `DR`, with an optional token |
+| Mobile capability           | Documented API v1 route and contract                                                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create/send a campaign      | `POST /campaign/create/send`; documented fields include `name`, `body`, `type` (`IMMEDIATE` or `SCHEDULED`), `groupIds`, `from`, and `scheduledTime`    |
+| Modify a scheduled campaign | `POST /campaign/modifycampaign?source=api`                                                                                                              |
+| Cancel a scheduled campaign | `POST /campaign/deletecampaign/{id}`                                                                                                                    |
+| Campaign list and reporting | `GET /campaign/list?filter=PAST` or `SCHEDULED`; `GET /campaign/getCampaignReport/{campaignId}`                                                         |
+| Direct SMS/reply            | `POST /text/send`                                                                                                                                       |
+| Incoming messages           | `GET /reporting/mo/:accountId/{timeRange}` with documented `Page` parameter; `result.mobileOriginatedMessages` contains `from`, `body`, and `timestamp` |
+| Audience groups             | `GET /reporting/groups/:accountId`                                                                                                                      |
+| Subscribers                 | `GET /reporting/subscriber/getsubscribers/:accountId`; supports `groupId`, `page`, `pageSize` from 10 to 1000, and `usable`                             |
+| Account information         | `GET /account/info/{accountId}`; includes `authToken`, `ssoUrl`, and `provisionedCodes`                                                                 |
+| Incoming/delivery webhooks  | `POST /account/webhooks/insertupdate/:accountId`; supports `MO` and `DR`, with an optional token                                                        |
 
 These are documented capabilities, not successful tests against the user's SAM3 account. No authenticated provider API call was made, no message was sent, and account entitlement, sender configuration, schedule timezone, error behavior, and live SAM3 compatibility still need verification.
 
@@ -46,7 +46,19 @@ These are documented capabilities, not successful tests against the user's SAM3 
 - The webhook token is documented as optional; no cryptographic signature scheme was established by this review. Verify how to authenticate and validate actual webhook requests.
 - The SMS documentation states 160 characters for the US and 140 for Canada. The demo's 1,600-character editor and generic segment estimate are not proof that a production request supports that length. Confirm provider limits, concatenation, encoding, and recipient-country behavior before enabling delivery.
 
-## Proposed architecture — not a deployed service
+## Implemented server read adapter
+
+The repository now contains `server/sam-client.ts`, a server-only API v1 adapter for account information, groups, campaign lists, incoming messages, and subscribers. A local `npm run api:check` command exercises read access when authorized server credentials are configured. See [Connect your SAM account](CONNECT-SAM.md) for setup.
+
+Configuration uses `SAM_ACCOUNT_ID` and `SAM_AUTHORIZATION` in the Git-ignored `server/.env.local`; the authorization value accepts the complete copied Basic header or its bare base64 value. `server/config.ts` does not derive credentials from a guessed username/password pair. The CLI checks six reads: account, groups, past campaigns, scheduled campaigns, today's first incoming-message page, and the first 10 usable subscribers of the first existing group. A usable subscriber response is not proof of consent to send.
+
+Output is limited to status labels and static guidance, with no account identifiers, names, message bodies, counts, credentials, or raw provider errors. Failed account access skips the other checks; authentication and rate-limit failures stop subsequent requests; no available group leaves contacts skipped. Exit codes are `0` for all six passing, `1` for failure, and `2` for a skipped check without a failure. The final summary explicitly leaves sending, native sign-in, billing, live Writer, and full inbox sync untested.
+
+The adapter fixes the provider origin, rejects redirects, times out requests, and does not automatically retry. Account information is projected through an allowlist that excludes provider credentials and SSO URLs. Adapter tests use simulated responses; no live credential or authenticated API check has been used to verify this SAM3 account.
+
+This is implemented integration groundwork, not a deployed mobile backend or a repair to a confirmed external endpoint failure. The native app still uses local fictional data. Sending, campaign mutations, native customer authentication, billing, and live Writer remain outside the read adapter. Credentials belong in ignored local server configuration or the deployed backend's secret storage, never in Expo public variables or the app bundle. No provider secrets have been added to GitHub Actions.
+
+## Proposed connected architecture — not a deployed service
 
 ```text
 iOS / Android app
@@ -61,7 +73,7 @@ Textmunication-owned mobile backend
     └── server-held provider credentials → approved SAM API
 ```
 
-The owned backend is a proposed integration boundary, not a claim that SAM already exposes these mobile endpoints. It must be implemented and deployed before real account data, billing, AI generation, or sending can be enabled. Provider secrets belong on the backend; do not ship them in the mobile app. The current Writer is deterministic offline template assistance using only supplied details.
+The read adapter implements only the provider-access portion of this proposed architecture. The authenticated mobile backend, business authorization, and delivery services must still be implemented and deployed before real account data, billing, AI generation, or sending can be enabled in the app. This diagram does not claim that SAM already exposes native mobile endpoints. Provider secrets belong on the backend; do not ship them in the mobile app. The current Writer is deterministic offline template assistance using only supplied details.
 
 ### Authentication and organization isolation
 
@@ -100,7 +112,7 @@ Start with authenticated read-only account and invoice data. Enforce billing per
 
 ## Delivery sequence
 
-1. **Integration contract:** the SAM3 workflow walkthrough and direct API v1 documentation review are complete. Validate the documented campaign, subscriber, and incoming-message APIs against an authorized SAM3 test tenant; confirm sender provisioning and production limits. Obtain the separate native sign-in, merchant billing, and Writer contracts. The user enters credentials through the service's own login interface.
+1. **Verify configured read access:** the SAM3 walkthrough, documentation review, and server read-adapter implementation are complete. Configure authorized local server credentials and run `npm run api:check`. A successful read check does not establish sending or mobile sign-in. Confirm sender provisioning and production limits; obtain the separate native sign-in, merchant billing, and Writer contracts. The user enters credentials through the service's own login interface.
 2. **Read-only staging:** implement sign-in, tenant authorization, inbox, contact/consent, campaign reporting, and owner-scoped billing adapters. Verify pagination, empty states, permission failures, expiry, and network recovery with synthetic data.
 3. **Controlled sending:** add preview and explicit confirmation, server consent checks, idempotent jobs, webhook reconciliation and audit records. Test only with designated consenting test recipients.
 4. **Pilot:** enable a small authorized group, monitoring, incident ownership and a server-side send kill switch. Verify account deletion, session revocation and tenant isolation.
