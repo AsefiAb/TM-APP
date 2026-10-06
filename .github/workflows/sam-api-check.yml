@@ -1,0 +1,35 @@
+name: Check SAM API connection
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sam-api-check
+  cancel-in-progress: false
+
+jobs:
+  check-sam:
+    # Live credentials are used only by an explicitly started main-branch check.
+    if: github.repository == 'AsefiAb/TM-APP' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the selected main commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check SAM read access
+        env:
+          SAM_ACCOUNT_ID: ${{ secrets.SAM_ACCOUNT_ID }}
+          SAM_AUTHORIZATION: ${{ secrets.SAM_AUTHORIZATION }}
+        run: npm run api:check

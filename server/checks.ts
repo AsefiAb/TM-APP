@@ -20,7 +20,7 @@ export function safeFailure(error: unknown): string {
     return "Unexpected local error. No provider response or credentials were logged.";
   const explanations: Record<SamApiError["code"], string> = {
     config:
-      "Check the API Account ID and copied authorization value in the local setup file.",
+      "Check SAM_ACCOUNT_ID and SAM_AUTHORIZATION in the GitHub Actions secrets or server environment.",
     auth: "SAM rejected access. Confirm the API key, account, and permissions with the SAM team.",
     missing:
       "SAM did not find this route. Confirm API v1 access for this SAM account.",

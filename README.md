@@ -33,7 +33,7 @@ The project includes `expo-dev-client`; the recommended device path is an EAS de
 - A Billing demo for exploring account information. Sample amounts and billing records are not the owner's actual plan, balance, payment method, or invoices; no charge, purchase, or plan change is performed. The account-settings link opens the verified SAM web page, not an assumed payment portal.
 - Local persistence with schema validation, serialized saves, saved guide progress, and a demo reset.
 - Responsive navigation, screen-reader labels, native safe areas, app icons, EAS profiles, and a GitHub checks workflow.
-- A server-only API v1 read adapter and local connection check for account information, groups, campaigns, incoming messages, and subscribers. The mobile app remains disconnected from these services.
+- A server-only API v1 read adapter and manually triggered GitHub connection check for account information, groups, campaigns, incoming messages, and subscribers. The mobile app remains disconnected from these services.
 
 ## Validation
 
@@ -49,7 +49,7 @@ Tests cover SMS segmentation (including extended GSM characters and emoji), cons
 
 ## Connect the real platform
 
-Start with [Connect your SAM account](docs/CONNECT-SAM.md): fill `SAM_ACCOUNT_ID` and `SAM_AUTHORIZATION` in the Git-ignored `server/.env.local`, then run `npm run api:check`. Use the API values from SAM Account settings, not your website password; the copied authorization value may include `Basic ` or be the bare base64 value. The check reads account information, groups, past/scheduled campaigns, today's first incoming-message page, and one group's first subscriber page. It prints only sanitized `PASS`/`FAIL`/`SKIPPED` guidance. It does not send messages, connect the native app, or change billing. No live API check has been completed yet; simulated-response tests verify the local code only.
+Start with [Connect your SAM account](docs/CONNECT-SAM.md): add `SAM_ACCOUNT_ID` and `SAM_AUTHORIZATION` as [GitHub repository secrets](https://github.com/AsefiAb/TM-APP/settings/secrets/actions), using the corresponding SAM API Information values. Then open **Actions → Check SAM API connection → Run workflow** on **main**. No local credentials file is needed. The check prints sanitized `PASS`/`FAIL`/`SKIPPED` guidance and never sends messages or changes billing. Adding GitHub secrets does not connect the phone app or deploy its backend. No secret values have been added and no live API check has been completed by this implementation; simulated-response tests verify local code only.
 
 The authenticated SAM AI workspace at `sam3.txhd.io` was inspected on October 6, 2026. It exposes a four-step Writer, campaigns with SMS/MMS/RCS choices, Help, Take Tour, and FastTrack. The SAM campaign screen's Send Campaign control displayed an account-not-provisioned message. Textmunication support must resolve this current SAM account's sending configuration before live delivery can be tested; no message was sent during inspection.
 
@@ -71,7 +71,8 @@ See [integration plan and verified sources](docs/INTEGRATION.md), [store release
 | `src/domain.test.ts`                                          | Domain tests                                                    |
 | `src/sam.ts`, `src/sam.test.ts`                               | Offline Writer helpers, editable draft rules, and focused tests |
 | `server/sam-client.ts`, `server/sam-client.test.ts`           | Server-only API v1 read adapter and simulated-response tests    |
-| `server/config.ts`, `server/checks.ts`, `server/check-sam.ts` | Private local configuration and read-only connection checks     |
+| `server/config.ts`, `server/checks.ts`, `server/check-sam.ts` | Server configuration and read-only connection checks     |
+| `.github/workflows/sam-api-check.yml` | Manual main-branch API check using repository secrets |
 | `docs/CONNECT-SAM.md`                                         | Plain-English connection setup and developer handoff            |
 | `docs/SAM-UX.md`                                              | Mobile interaction design and acceptance walkthrough            |
 | `assets/`                                                     | Original app icon, vector source, and asset generator           |

@@ -3,7 +3,7 @@ import { parseEnv } from "node:util";
 export class SamSetupError extends Error {
   constructor() {
     super(
-      "Add your API Account ID and Authorization Header to server/.env.local, then run npm run api:check again. Do not paste them in chat or GitHub.",
+      "Set SAM_ACCOUNT_ID and SAM_AUTHORIZATION in GitHub Actions repository secrets, then run Check SAM API connection on main. For local development, server/.env.local is optional. Never put credentials in chat or repository files.",
     );
     this.name = "SamSetupError";
   }
