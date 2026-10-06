@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Textmunication",
+    "slug": "textmunication-mobile",
+    "version": "0.1.0",
+    "description": "Manage business conversations, contacts, and campaigns on the go.",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "textmunication",
+    "userInterfaceStyle": "light",
+    "primaryColor": "#0B847E",
+    "githubUrl": "https://github.com/AsefiAb/TM-APP",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.textmunication.mobile",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.textmunication.mobile",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#18212E",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
+  }
+}
