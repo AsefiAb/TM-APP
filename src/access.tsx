@@ -7,14 +7,15 @@ import React, {
 } from "react";
 import {
   Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Brand, Button, C, Icon, IconName, ui } from "./ui";
+import { Brand, Button, C, Icon, ui } from "./ui";
+import { AuthPreviewPath, AuthWalkthrough } from "./auth-walkthrough";
 
 type Access = {
   mode: "welcome" | "demo";
@@ -44,30 +45,11 @@ export function useAccess() {
   return context;
 }
 
-const features: { icon: IconName; title: string; description: string }[] = [
-  {
-    icon: "send",
-    title: "Campaigns",
-    description: "Make your next message count.",
-  },
-  {
-    icon: "message-circle",
-    title: "Inbox",
-    description: "Keep conversations close.",
-  },
-  {
-    icon: "credit-card",
-    title: "Billing",
-    description: "See the essentials at a glance.",
-  },
-];
-
 export function WelcomeScreen() {
   const { enterDemo } = useAccess();
-  const { width } = useWindowDimensions();
-  const wide = width >= 900;
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
+  const [previewPath, setPreviewPath] = useState<AuthPreviewPath | null>(null);
 
   async function openSam() {
     setError("");
@@ -77,112 +59,88 @@ export function WelcomeScreen() {
       await Linking.openURL("https://sam3.txhd.io/");
     } catch {
       setError(
-        "SAM could not open. Please try again, or visit sam3.txhd.io in your browser.",
+        "SAM could not open. Try again, or visit sam3.txhd.io in your browser.",
       );
     } finally {
       setOpening(false);
     }
   }
 
+  if (previewPath) {
+    return (
+      <AuthWalkthrough
+        initialPath={previewPath}
+        onBack={() => setPreviewPath(null)}
+        onEnterDemo={enterDemo}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={s.root}>
       <ScrollView
-        contentContainerStyle={[s.scroll, wide && s.scrollWide]}
+        contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
         <View style={s.frame}>
-          <View style={s.brand}>
-            <Brand />
+          <Brand />
+          <View style={s.introduction}>
+            <Text accessibilityRole="header" style={s.title}>
+              Your business,{"\n"}in your pocket.
+            </Text>
+            <Text style={s.subtitle}>
+              Campaigns, replies and billing. All together.
+            </Text>
           </View>
-          <View style={[s.content, wide && s.contentWide]}>
-            <View style={[s.introduction, wide && s.introductionWide]}>
-              <Text style={s.eyebrow}>SAM AI · ON THE GO</Text>
+          <View style={s.actions}>
+            <Button
+              title="Preview sign up"
+              onPress={() => setPreviewPath("signup")}
+            />
+            <Button
+              title="Preview sign in"
+              variant="secondary"
+              onPress={() => setPreviewPath("signin")}
+            />
+            <Button
+              title="Explore the demo"
+              icon="arrow-right"
+              variant="ghost"
+              onPress={enterDemo}
+            />
+            <Text style={s.previewNote}>
+              Sample details. No account created or messages sent.
+            </Text>
+          </View>
+          <View style={s.website}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                opening ? "Opening SAM…" : "Open SAM website sign-in"
+              }
+              accessibilityState={{ disabled: opening }}
+              disabled={opening}
+              onPress={openSam}
+              style={({ pressed }) => [s.websiteLink, pressed && s.pressed]}
+            >
+              <Text style={s.websiteText}>
+                {opening ? "Opening SAM…" : "Open SAM website sign-in"}
+              </Text>
+              <Icon name="external-link" size={14} color={C.primary} />
+            </Pressable>
+            <Text style={s.connectionNote}>
+              For your real account. Mobile sign-in is not connected yet.
+            </Text>
+            {error ? (
               <Text
-                accessibilityRole="header"
-                style={[s.title, wide && s.titleWide]}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={ui.error}
               >
-                Your business.{"\n"}Connected.
+                {error}
               </Text>
-              <Text style={s.subtitle}>
-                A little less work. A lot more connection. Your everyday
-                essentials, together in one place.
-              </Text>
-              <View style={[s.features, !wide && s.featuresCompact]}>
-                {features.map((feature) => (
-                  <View
-                    key={feature.title}
-                    style={[s.feature, !wide && s.featureCompact]}
-                  >
-                    <View
-                      style={[s.featureIcon, !wide && s.featureIconCompact]}
-                    >
-                      <Icon
-                        name={feature.icon}
-                        color={C.primary}
-                        size={wide ? 20 : 15}
-                      />
-                    </View>
-                    <View style={wide && ui.grow}>
-                      <Text
-                        style={[s.featureTitle, !wide && s.featureTitleCompact]}
-                      >
-                        {feature.title}
-                      </Text>
-                      {wide ? (
-                        <Text style={s.featureDescription}>
-                          {feature.description}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-            <View style={[s.card, wide && s.cardWide]}>
-              {wide ? (
-                <View style={s.welcomeIcon}>
-                  <Icon name="log-in" color={C.primary} size={25} />
-                </View>
-              ) : null}
-              <Text accessibilityRole="header" style={s.cardTitle}>
-                Welcome to SAM AI
-              </Text>
-              <Text style={s.cardDescription}>
-                Use your existing SAM account on the web, or take a look around
-                the mobile preview.
-              </Text>
-              <Button
-                title={opening ? "Opening SAM…" : "Open SAM sign-in"}
-                icon="external-link"
-                onPress={openSam}
-                disabled={opening}
-              />
-              <Text style={s.connectionNote}>
-                Opens SAM in your browser. Mobile account sign-in is not
-                connected yet.
-              </Text>
-              {error ? (
-                <Text
-                  accessibilityRole="alert"
-                  accessibilityLiveRegion="polite"
-                  style={ui.error}
-                >
-                  {error}
-                </Text>
-              ) : null}
-              <View style={s.divider} />
-              <Button
-                title="Explore the demo"
-                icon="arrow-right"
-                variant="secondary"
-                onPress={enterDemo}
-              />
-              <Text style={s.demoNote}>
-                Sample contacts and messages. Nothing is sent or charged.
-              </Text>
-            </View>
+            ) : null}
           </View>
-          <Text style={s.footer}>Powered by Textmunication</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -190,113 +148,55 @@ export function WelcomeScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
-  scroll: { flexGrow: 1, padding: 24, justifyContent: "center" },
-  scrollWide: { padding: 48 },
-  frame: { width: "100%", maxWidth: 1080, alignSelf: "center" },
-  brand: { marginBottom: 28 },
-  content: { gap: 24 },
-  contentWide: { flexDirection: "row", gap: 72, alignItems: "center" },
-  introduction: { gap: 14 },
-  introductionWide: { flex: 1, minWidth: 0 },
-  eyebrow: {
-    color: C.primary,
-    fontSize: 11,
-    lineHeight: 17,
-    fontWeight: "700",
-    letterSpacing: 1.7,
+  root: { flex: 1, backgroundColor: C.white },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    paddingVertical: 36,
+    justifyContent: "center",
   },
+  frame: { width: "100%", maxWidth: 380, alignSelf: "center", gap: 32 },
+  introduction: { gap: 12 },
   title: {
     color: C.ink,
-    fontSize: 36,
-    lineHeight: 41,
+    fontSize: 34,
+    lineHeight: 40,
     fontWeight: "700",
-    letterSpacing: -1.3,
+    letterSpacing: -1.2,
   },
-  titleWide: { fontSize: 52, lineHeight: 57, letterSpacing: -2 },
-  subtitle: { color: C.muted, fontSize: 16, lineHeight: 25, maxWidth: 400 },
-  features: { gap: 14, marginTop: 10 },
-  featuresCompact: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 0,
-  },
-  feature: { flexDirection: "row", alignItems: "center", gap: 13 },
-  featureCompact: {
-    gap: 7,
-    backgroundColor: C.lilac,
-    borderRadius: 9,
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-  },
-  featureIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: C.lilac,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  featureIconCompact: { width: 15, height: 15, borderRadius: 0 },
-  featureTitle: {
-    color: C.ink,
-    fontSize: 14,
-    lineHeight: 21,
-    fontWeight: "600",
-  },
-  featureTitleCompact: { fontSize: 12, lineHeight: 18 },
-  featureDescription: { color: C.muted, fontSize: 13, lineHeight: 20 },
-  card: {
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 24,
-    padding: 24,
-    gap: 16,
-  },
-  cardWide: { width: 390, padding: 30 },
-  welcomeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: C.lilac,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardTitle: {
-    color: C.ink,
-    fontSize: 23,
-    lineHeight: 30,
-    fontWeight: "700",
-    letterSpacing: -0.5,
-  },
-  cardDescription: {
+  subtitle: { color: C.muted, fontSize: 15, lineHeight: 23 },
+  actions: { gap: 10 },
+  previewNote: {
     color: C.muted,
-    fontSize: 14,
-    lineHeight: 22,
-    marginTop: -7,
-    marginBottom: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    paddingHorizontal: 8,
+  },
+  website: {
+    gap: 2,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  websiteLink: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+  websiteText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: C.primary,
+    fontWeight: "600",
   },
   connectionNote: {
     color: C.muted,
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: -6,
-  },
-  divider: { height: 1, backgroundColor: C.border, marginVertical: 2 },
-  demoNote: {
-    color: C.muted,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: "center",
-    marginTop: -6,
-  },
-  footer: {
-    color: C.muted,
     fontSize: 11,
     lineHeight: 17,
     textAlign: "center",
-    marginTop: 30,
   },
+  pressed: { opacity: 0.65 },
 });

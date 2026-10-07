@@ -76,6 +76,18 @@ A fresh direct visit to `/billing` showed welcome first. Selecting **Explore the
 
 TypeScript, lint, and iOS/Android/web bundle exports passed. No provider credentials, messages, billing operations, or live sessions were used by this change. Signed builds and real-device checks remain pending.
 
+### Signup and sign-in walkthrough
+
+The October 6, 2026 update adds **Preview sign up** and **Preview sign in** on welcome. Signup proceeds through read-only sample account details, an explicitly simulated email confirmation, and sample business setup. Sign-in uses the same fictional account, with a password-reset explanation and return path. No credentials are accepted and no account, session, verification, or email is created.
+
+Both paths were completed in the browser and opened Home. Signup was started from a direct `/billing` visit and still landed on Home, after the navigator mounted. The existing seven campaigns remained, including **VIP thank-you offer — example**. Sign-in, the reset explanation, return to sign-in, and app entry also passed. The signup view was visually checked at 390 × 844; a narrower preview retained reachable controls and no horizontal document overflow. Steps returned to the top after proceeding. TypeScript, lint, and iOS/Android/web bundle exports passed. The live SAM website link is separate from these local walkthroughs.
+
+### Simpler phone preview
+
+The welcome screen was reduced to a short headline, two main preview actions, and a direct demo shortcut. Setup headings and explanations were shortened. `public/phone.html` embeds the same app at 390 × 844 inside a phone frame that scales to the browser panel; the frame does not change the native app or reset local storage.
+
+The simplified signup and sign-in/reset paths were completed in the phone frame. Signup steps start at the top after their keyed scroll container mounts. The campaign example helper, Inbox, and Billing opened inside the frame, and re-entry still showed the existing seven campaigns. The outer Reload control returned to welcome. TypeScript, lint, and all three platform exports passed. One MutationObserver error appeared during browser automation; no MutationObserver reference exists in the exported app or phone shell, and no visible flow failed. Its source was not attributed to app code. Native device verification remains pending.
+
 ## Remaining acceptance checks
 
 These checks remain pending and are not implied by the browser results above:

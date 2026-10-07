@@ -13,6 +13,8 @@ npm ci
 npm run web
 ```
 
+For a phone-shaped browser preview, open `/phone.html` on the web preview server. It displays the same app in a 390 × 844 screen inside a scaled phone frame. Native iOS and Android builds do not include the outer browser frame.
+
 For a phone or simulator:
 
 ```sh
@@ -23,7 +25,8 @@ The project includes `expo-dev-client`; the recommended device path is an EAS de
 
 ## Included
 
-- A branded welcome screen with separate **Open SAM sign-in** and **Explore the demo** actions. The former opens the existing SAM website; it does not authenticate the mobile app. Every workspace route requires explicit demo entry until the approved customer-login integration exists. **Leave demo** returns to welcome while keeping saved demo drafts.
+- A branded welcome screen with **Preview sign up**, **Preview sign in**, and a direct **Explore the demo** shortcut. The signup walkthrough includes example email confirmation and business setup; sign-in and password-reset previews use fixed sample details without accepting credentials or sending emails. Both paths lead to the Home dashboard. **Leave demo** returns to welcome while keeping saved demo drafts.
+- A separate **Open SAM website sign-in** action opens the existing SAM website; it does not authenticate the mobile app. Every workspace route requires explicit demo entry until the approved customer-login integration exists.
 - The official SAM wordmark, blue controls, neutral surfaces, and outline graphics drawn from the current SAM application. Mobile navigation keeps the five everyday destinations.
 - Five primary destinations: Home, Campaigns, Inbox, Audience, and Billing; settings are available from the header.
 - An owner-focused Home with quick actions for campaigns, inbox, and billing, followed by items needing attention and a short optional getting-started guide.
