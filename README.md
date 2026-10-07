@@ -23,6 +23,8 @@ The project includes `expo-dev-client`; the recommended device path is an EAS de
 
 ## Included
 
+- A branded welcome screen with separate **Open SAM sign-in** and **Explore the demo** actions. The former opens the existing SAM website; it does not authenticate the mobile app. Every workspace route requires explicit demo entry until the approved customer-login integration exists. **Leave demo** returns to welcome while keeping saved demo drafts.
+- The official SAM wordmark, blue controls, neutral surfaces, and outline graphics drawn from the current SAM application. Mobile navigation keeps the five everyday destinations.
 - Five primary destinations: Home, Campaigns, Inbox, Audience, and Billing; settings are available from the header.
 - An owner-focused Home with quick actions for campaigns, inbox, and billing, followed by items needing attention and a short optional getting-started guide.
 - Writing assistance inside campaign creation: offer, reconnection, and update starters plus tone choices. Suggestions use the details you supply and remain editable; the interface identifies this as offline template assistance.
@@ -76,8 +78,8 @@ See [integration plan and verified sources](docs/INTEGRATION.md), [store release
 | `src/domain.test.ts`                                          | Domain tests                                                    |
 | `src/sam.ts`, `src/sam.test.ts`                               | Offline Writer helpers, editable draft rules, and focused tests |
 | `server/sam-client.ts`, `server/sam-client.test.ts`           | Server-only API v1 read adapter and simulated-response tests    |
-| `server/config.ts`, `server/checks.ts`, `server/check-sam.ts` | Server configuration and read-only connection checks     |
-| `.github/workflows/sam-api-check.yml` | Manual main-branch API check using repository secrets |
+| `server/config.ts`, `server/checks.ts`, `server/check-sam.ts` | Server configuration and read-only connection checks            |
+| `.github/workflows/sam-api-check.yml`                         | Manual main-branch API check using repository secrets           |
 | `docs/CONNECT-SAM.md`                                         | Plain-English connection setup and developer handoff            |
 | `docs/SAM-UX.md`                                              | Mobile interaction design and acceptance walkthrough            |
 | `assets/`                                                     | Original app icon, vector source, and asset generator           |

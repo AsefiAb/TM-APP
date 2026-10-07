@@ -188,7 +188,7 @@ export function BillingScreen({ onOpenBilling }: BillingScreenProps) {
       >
         <View style={s.exampleNotice}>
           <Icon name="info" color={C.primary} size={20} />
-          <Text style={[ui.help, ui.grow, { color: "#5A3BBA" }]}>
+          <Text style={[ui.help, ui.grow, { color: "#086CA8" }]}>
             All amounts below are illustrative. They are not Textmunication
             prices, your charges, or a request for payment.
           </Text>

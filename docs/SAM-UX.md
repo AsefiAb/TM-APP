@@ -68,6 +68,14 @@ The optional online path withheld generated wording until its existing-code setu
 
 All 33 mobile helper tests, TypeScript, lint, and iOS/Android/web bundle exports passed. The tested browser reported no errors. Native keyboard settings for checkout code/URL capitalization and autocorrection are configured but still require real-device checks.
 
+## Welcome and SAM branding verification
+
+The welcome flow and visual alignment were checked on October 6, 2026 at 390 × 844 and 1280 × 720. The official SAM wordmark replaces the previous custom sparkle; blue controls, neutral surfaces, outline icons, and direct page titles follow the inspected SAM campaigns screen. App icons adapt the official letter paths to a square; provenance is recorded in `assets/SAM-BRAND-SOURCE.txt`.
+
+A fresh direct visit to `/billing` showed welcome first. Selecting **Explore the demo** opened Billing, and **Leave demo** returned to welcome. Re-entering retained all seven local campaigns, including the saved offer example. Reload returned to welcome. Clicking **Open SAM sign-in** did not grant demo access or create an authenticated mobile state; the fixed external website target is separate from this app. Native browser handoff and actual authentication remain unverified. The 390-pixel preview had no horizontal document overflow or reported browser errors.
+
+TypeScript, lint, and iOS/Android/web bundle exports passed. No provider credentials, messages, billing operations, or live sessions were used by this change. Signed builds and real-device checks remain pending.
+
 ## Remaining acceptance checks
 
 These checks remain pending and are not implied by the browser results above:

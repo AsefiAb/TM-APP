@@ -200,7 +200,7 @@ export function ConversationRow({
       onPress={onPress}
       style={({ pressed }) => [
         s.conversationRow,
-        (selected || pressed) && { backgroundColor: "#F5F2FE" },
+        (selected || pressed) && { backgroundColor: "#EFF7FC" },
       ]}
     >
       <Avatar name={person.name} />
@@ -404,7 +404,7 @@ export function ConversationView({
             <Text
               style={[
                 s.bubbleTime,
-                m.direction === "outbound" && { color: "#E2D9FC" },
+                m.direction === "outbound" && { color: "#E0F2FC" },
               ]}
             >
               {m.time}
@@ -502,7 +502,7 @@ export function AudienceScreen({
             <View
               style={[
                 s.groupIcon,
-                { backgroundColor: ["#EEE8FD", "#E7F4EB", "#FFF0E4"][index] },
+                { backgroundColor: ["#EAF5FC", "#E7F4EB", "#FFF0E4"][index] },
               ]}
             >
               <Icon
@@ -626,7 +626,7 @@ const s = StyleSheet.create({
   rowLink: { fontSize: 12, color: C.primary, fontWeight: "600" },
   tip: {
     padding: 18,
-    backgroundColor: "#F0EDF8",
+    backgroundColor: "#EDF3F7",
     borderRadius: 15,
     flexDirection: "row",
     alignItems: "center",
@@ -648,12 +648,12 @@ const s = StyleSheet.create({
   bubble: { padding: 16, borderRadius: 19, gap: 7, maxWidth: "89%" },
   outbound: {
     alignSelf: "flex-end",
-    backgroundColor: "#7454CA",
+    backgroundColor: "#086CA8",
     borderBottomRightRadius: 5,
   },
   inbound: {
     alignSelf: "flex-start",
-    backgroundColor: "#F1F0F5",
+    backgroundColor: "#F1F4F7",
     borderBottomLeftRadius: 5,
   },
   bubbleBody: { fontSize: 15, lineHeight: 24, color: C.ink },

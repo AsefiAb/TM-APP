@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "scheme": "textmunication",
     "userInterfaceStyle": "light",
-    "primaryColor": "#7254E8",
+    "primaryColor": "#168BD1",
     "githubUrl": "https://github.com/AsefiAb/TM-APP",
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
       "package": "com.textmunication.mobile",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#7254E8",
+        "backgroundColor": "#168BD1",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }

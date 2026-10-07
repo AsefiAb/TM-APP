@@ -1,0 +1,16 @@
+SAM AI official wordmark
+
+Source: https://textmunication.s3.us-west-2.amazonaws.com/prod/textmunicationAdmin/samailogo.svg
+Retrieved from the business owner's authorized SAM AI application on 2026-10-06.
+sam-logo.svg is the unchanged source. sam-logo.png is a transparent rasterization
+with only empty outer whitespace removed. The shared Brand component uses it.
+
+App icon adaptation: brand-mark.svg reuses the official SAM and AI letter paths,
+stacked in white on SAM blue (#168BD1) to fit a square icon. It is an app-specific
+adaptation, not a claim that SAM publishes this square icon. Native adaptive
+foreground/monochrome assets use a smaller mark to preserve mask safe space.
+
+Regenerate with the build-time Sharp module:
+node assets/generate-assets.cjs [path-to-sharp-module]
+The PowerShell wrapper accepts -SharpModule and -Node for alternate tool paths.
+No Sharp dependency is shipped in the application.

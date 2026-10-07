@@ -26,14 +26,14 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export const C = {
-  bg: "#F7F7FC",
+  bg: "#F7F9FC",
   white: "#FFFFFF",
-  ink: "#231C35",
-  muted: "#6C677B",
-  primary: "#7254E8",
-  accent: "#B8318B",
-  border: "#E9E7F1",
-  lilac: "#F0ECFF",
+  ink: "#1A202C",
+  muted: "#667085",
+  primary: "#086CA8",
+  accent: "#168BD1",
+  border: "#DFE5ED",
+  lilac: "#EAF4FB",
   green: "#207B61",
 } as const;
 
@@ -87,10 +87,10 @@ export function Button({
 }
 
 const badgeTones = {
-  purple: { backgroundColor: C.lilac, color: "#5A3BBA" },
+  purple: { backgroundColor: C.lilac, color: C.primary },
   green: { backgroundColor: "#E7F5EE", color: "#22684F" },
   amber: { backgroundColor: "#FFF3DA", color: "#8C5915" },
-  gray: { backgroundColor: "#F0EFF4", color: "#625D70" },
+  gray: { backgroundColor: "#F0F2F5", color: "#586273" },
 };
 
 export function Badge({
@@ -437,19 +437,13 @@ export function Brand({ compact = false }: { compact?: boolean }) {
       accessible
       accessibilityLabel="SAM AI by Textmunication"
     >
-      <View style={[s.brandMark, compact && s.compactMark]}>
-        <Image
-          source={require("../assets/icon.png")}
-          style={s.brandImage}
-          accessible={false}
-        />
-      </View>
-      <View>
-        <Text style={[s.brandTitle, compact && s.compactBrandTitle]}>
-          SAM <Text style={s.brandAI}>AI</Text>
-        </Text>
-        {!compact ? <Text style={s.brandByline}>by Textmunication</Text> : null}
-      </View>
+      <Image
+        source={require("../assets/sam-logo.png")}
+        style={[s.brandImage, compact && s.compactBrandImage]}
+        resizeMode="contain"
+        accessible={false}
+      />
+      {!compact ? <Text style={s.brandByline}>by Textmunication</Text> : null}
     </View>
   );
 }
@@ -497,7 +491,7 @@ const s = StyleSheet.create({
     minHeight: 48,
     paddingVertical: 12,
     paddingHorizontal: 18,
-    borderRadius: 14,
+    borderRadius: 9,
     backgroundColor: C.primary,
     flexDirection: "row",
     alignItems: "center",
@@ -528,7 +522,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 21,
+    borderRadius: 14,
     padding: 20,
   },
   section: { minHeight: 44 },
@@ -553,7 +547,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     borderColor: C.border,
     borderWidth: 1,
-    borderRadius: 13,
+    borderRadius: 9,
     minHeight: 50,
     paddingVertical: 13,
     paddingHorizontal: 14,
@@ -567,7 +561,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 14,
+    borderRadius: 9,
     minHeight: 50,
     paddingLeft: 14,
     paddingRight: 4,
@@ -593,7 +587,7 @@ const s = StyleSheet.create({
   chip: {
     minHeight: 44,
     minWidth: 44,
-    borderRadius: 11,
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 11,
     justifyContent: "center",
@@ -601,9 +595,9 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  selectedChip: { backgroundColor: C.lilac, borderColor: "#DAD0FF" },
+  selectedChip: { backgroundColor: C.lilac, borderColor: "#B9DAF1" },
   chipText: { color: C.muted, fontSize: 14, lineHeight: 20, fontWeight: "600" },
-  selectedChipText: { color: "#5A3BBA" },
+  selectedChipText: { color: C.primary },
   empty: {
     alignItems: "center",
     paddingVertical: 36,
@@ -613,7 +607,7 @@ const s = StyleSheet.create({
   emptyIcon: {
     height: 62,
     width: 62,
-    borderRadius: 21,
+    borderRadius: 16,
     backgroundColor: C.lilac,
     alignItems: "center",
     justifyContent: "center",
@@ -623,7 +617,7 @@ const s = StyleSheet.create({
   emptyBody: { maxWidth: 330, textAlign: "center", marginBottom: 8 },
   modalRoot: {
     flex: 1,
-    backgroundColor: "rgba(28,20,45,0.42)",
+    backgroundColor: "rgba(26,32,44,0.42)",
     justifyContent: "flex-end",
   },
   desktopModal: { alignItems: "center", justifyContent: "center", padding: 28 },
@@ -631,11 +625,11 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     maxHeight: "94%",
     width: "100%",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     overflow: "hidden",
   },
-  desktopSheet: { maxWidth: 560, borderRadius: 24, maxHeight: "92%" },
+  desktopSheet: { maxWidth: 560, borderRadius: 16, maxHeight: "92%" },
   sheetHandle: {
     width: 36,
     height: 4,
@@ -659,7 +653,7 @@ const s = StyleSheet.create({
   closeButton: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: 9,
     backgroundColor: C.bg,
     alignItems: "center",
     justifyContent: "center",
@@ -668,30 +662,14 @@ const s = StyleSheet.create({
   avatar: {
     backgroundColor: C.lilac,
     borderWidth: 1,
-    borderColor: "#E4DCFC",
+    borderColor: "#CDE4F4",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontWeight: "700", color: "#6846B9" },
-  brand: { flexDirection: "row", alignItems: "center", gap: 10 },
-  brandMark: {
-    width: 43,
-    height: 43,
-    borderRadius: 15,
-    backgroundColor: C.primary,
-    overflow: "hidden",
-  },
-  compactMark: { width: 36, height: 36, borderRadius: 12 },
-  brandImage: { width: "100%", height: "100%" },
-  brandTitle: {
-    color: C.ink,
-    fontSize: 22,
-    lineHeight: 26,
-    fontWeight: "800",
-    letterSpacing: -0.6,
-  },
-  compactBrandTitle: { fontSize: 20, lineHeight: 25 },
-  brandAI: { color: C.primary },
+  avatarText: { fontWeight: "700", color: C.primary },
+  brand: { alignItems: "flex-start", gap: 5 },
+  brandImage: { width: 152, height: 35 },
+  compactBrandImage: { width: 118, height: 28 },
   brandByline: {
     color: C.muted,
     fontSize: 10,

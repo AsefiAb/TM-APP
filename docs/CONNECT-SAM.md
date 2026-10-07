@@ -1,6 +1,6 @@
 # Connect your SAM account
 
-The repository has a server-side API adapter and a read-only connection check that runs from GitHub. You do not need a local credentials file for this setup. The mobile app still opens its demo; completing the check will not sign the app in, send messages, or connect billing.
+The repository has a server-side API adapter and a read-only connection check that runs from GitHub. You do not need a local credentials file for this setup. The mobile app opens a welcome screen with an explicit demo option; completing the check will not sign the app in, send messages, or connect billing. **Open SAM sign-in** opens SAM's separate website and does not establish a mobile session.
 
 ## Verified connection
 
@@ -9,6 +9,8 @@ The repository has a server-side API adapter and a read-only connection check th
 The account now lists a provisioned sender entry, resolving the earlier missing-sender observation. A listed entry does not establish outbound SMS permission or delivery. Empty and sampled responses do not verify populated pagination, a complete synchronized inbox, customer sign-in, merchant billing, or live Writer. The mobile app remains a demo. The credentials stayed in GitHub secrets; they were not copied locally or embedded in the mobile app.
 
 ## Your next steps
+
+The simplest handoff to your SAM developer is: **“Please send the supported mobile login integration and give us access to deploy the app's backend.”** The API key already added to GitHub is separate from customer login.
 
 1. Ask your SAM developer how the mobile app should sign a business owner in and retrieve that business's plan, credits, and invoices. Share those API documents or an integration contact; the reviewed API v1 documentation does not cover these features.
 2. Confirm where Textmunication wants the app's backend hosted. GitHub secrets protect the connection checker, but a running backend is still needed to connect the phone app safely.
@@ -25,9 +27,9 @@ The two repository secrets are already configured for the verified run. Use thes
 3. **Read the result.** Open that workflow run's connection-check output. `PASS` means that read operation succeeded and its response format matched the adapter. `FAIL` gives a static next step. `SKIPPED` means the check could not run yet. If the account lists no sender number, ask SAM to enable sending. Share the checker's status output if help is needed, not the secret values. The app still needs its approved customer-login connection before real data can appear on a phone.
 
 | Repository secret name | Value to copy from SAM API Information |
-| --- | --- |
-| `SAM_ACCOUNT_ID` | API Account ID |
-| `SAM_AUTHORIZATION` | Authorization Header / API Key value |
+| ---------------------- | -------------------------------------- |
+| `SAM_ACCOUNT_ID`       | API Account ID                         |
+| `SAM_AUTHORIZATION`    | Authorization Header / API Key value   |
 
 The authorization value can include `Basic ` or be the bare base64 value; the checker accepts either. Paste the copied value as the secret value, without adding quotation marks.
 

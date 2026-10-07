@@ -10,8 +10,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useAccess } from "./access";
 import {
   Campaign,
   Contact,
@@ -65,24 +65,18 @@ const nav: {
 ];
 const pageCopy = {
   overview: [
-    "Your business. Moving forward.",
+    "Dashboard",
     "Send a campaign, answer a customer, get on with your day.",
   ],
   campaigns: [
-    "Small messages. Big possibilities.",
+    "Campaigns",
     "Create something new, or pick up where you left off.",
   ],
-  inbox: ["Every reply matters.", "A simple space for real conversations."],
-  contacts: [
-    "Get to know your audience.",
-    "The people behind every conversation.",
-  ],
-  billing: [
-    "Billing, without the guesswork.",
-    "Your plan, message usage, and invoices in one place.",
-  ],
+  inbox: ["Inbox", "A simple space for real conversations."],
+  contacts: ["Subscribers", "The people behind every conversation."],
+  billing: ["Billing", "Your plan, message usage, and invoices in one place."],
   settings: [
-    "Make yourself at home.",
+    "Account settings",
     "Your workspace, preferences, and a little help.",
   ],
 };
@@ -93,6 +87,7 @@ type ComposerState = {
 } | null;
 
 export function Workspace({ tab }: { tab: Tab }) {
+  const { leaveDemo } = useAccess();
   const {
     data,
     ready,
@@ -273,7 +268,7 @@ export function Workspace({ tab }: { tab: Tab }) {
               <Brand compact />
             )}
             <View style={[ui.row, { gap: 10 }]}>
-              <Badge label="Preview" tone="purple" />
+              <Badge label="Demo" tone="purple" />
               {roomy && (
                 <Pressable
                   accessibilityRole="button"
@@ -349,7 +344,7 @@ export function Workspace({ tab }: { tab: Tab }) {
                           top: 100,
                           width: 220,
                           height: 220,
-                          backgroundColor: "#FBEAF6",
+                          backgroundColor: "#F0F8FC",
                         },
                       ]}
                     />
@@ -399,16 +394,15 @@ export function Workspace({ tab }: { tab: Tab }) {
                     </View>
                     {roomy && (
                       <View style={s.heroArt}>
-                        <LinearGradient
-                          colors={["#DDD2FF", "#BCA0F2", "#F4BADD"]}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={s.orb}
-                        >
+                        <View style={s.orb}>
                           <View style={s.orbInner}>
-                            <Text style={s.orbStar}>✦</Text>
+                            <Icon
+                              name="message-square"
+                              size={76}
+                              color={C.primary}
+                            />
                           </View>
-                        </LinearGradient>
+                        </View>
                         <View
                           style={[
                             s.floatingTag,
@@ -494,8 +488,8 @@ export function Workspace({ tab }: { tab: Tab }) {
                             s.goalIcon,
                             {
                               backgroundColor: [
-                                "#F0EAFF",
-                                "#FBEAF4",
+                                "#EAF5FC",
+                                "#F8EDF4",
                                 "#EAF3F8",
                               ][index],
                             },
@@ -534,7 +528,7 @@ export function Workspace({ tab }: { tab: Tab }) {
                           <View
                             style={[
                               s.attentionIcon,
-                              { backgroundColor: "#F1EAFE" },
+                              { backgroundColor: "#EAF5FC" },
                             ]}
                           >
                             <Icon name="message-circle" color={C.primary} />
@@ -880,6 +874,12 @@ export function Workspace({ tab }: { tab: Tab }) {
                     </Text>
                     <View style={s.settingsActions}>
                       <Button
+                        title="Leave demo"
+                        variant="secondary"
+                        icon="log-out"
+                        onPress={leaveDemo}
+                      />
+                      <Button
                         title="Reset demo workspace"
                         variant="secondary"
                         icon="rotate-ccw"
@@ -919,7 +919,7 @@ export function Workspace({ tab }: { tab: Tab }) {
                   <View
                     style={[
                       s.bottomIcon,
-                      tab === n.id && { backgroundColor: "#EDE7FE" },
+                      tab === n.id && { backgroundColor: "#EAF5FC" },
                     ]}
                   >
                     <Icon
@@ -1287,10 +1287,10 @@ const s = StyleSheet.create({
     gap: 13,
     marginBottom: 7,
   },
-  activeNav: { backgroundColor: "#F0ECFC" },
+  activeNav: { backgroundColor: "#EAF5FC" },
   navText: { fontSize: 14, color: C.muted, flex: 1 },
   navCount: {
-    backgroundColor: "#E4DAFD",
+    backgroundColor: "#DDEFF9",
     paddingVertical: 3,
     paddingHorizontal: 7,
     borderRadius: 7,
@@ -1305,7 +1305,7 @@ const s = StyleSheet.create({
   assistCard: {
     padding: 17,
     borderRadius: 18,
-    backgroundColor: "#F7F4FD",
+    backgroundColor: "#F7FAFC",
     gap: 12,
     marginBottom: 24,
   },
@@ -1313,7 +1313,7 @@ const s = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: "#EBE3FD",
+    backgroundColor: "#E6F3FA",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1348,11 +1348,11 @@ const s = StyleSheet.create({
     width: 42,
     minHeight: 44,
     borderRadius: 15,
-    backgroundColor: "#F0EBDD",
+    backgroundColor: "#F0F3F5",
     alignItems: "center",
     justifyContent: "center",
   },
-  profileText: { fontSize: 12, fontWeight: "700", color: "#756852" },
+  profileText: { fontSize: 12, fontWeight: "700", color: "#52616B" },
   content: { padding: 34, paddingBottom: 24 },
   contentInner: { width: "100%", maxWidth: 1240, alignSelf: "center", gap: 24 },
   helloLabel: {
@@ -1377,10 +1377,10 @@ const s = StyleSheet.create({
   },
   writerHero: {
     borderWidth: 1,
-    borderColor: "#E8E1F6",
+    borderColor: "#E2E8F0",
     borderRadius: 24,
     padding: 32,
-    backgroundColor: "#FDFBFF",
+    backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     gap: 28,
@@ -1391,7 +1391,7 @@ const s = StyleSheet.create({
     width: 440,
     height: 440,
     borderRadius: 220,
-    backgroundColor: "#EEE7FB",
+    backgroundColor: "#EFF7FC",
     opacity: 0.6,
   },
   writerLabel: {
@@ -1406,12 +1406,12 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 9,
-    backgroundColor: "#EDE6FC",
+    backgroundColor: "#E6F3FA",
   },
   writerLabelText: {
     fontSize: 9,
     fontWeight: "700",
-    color: "#75639C",
+    color: "#42637B",
     letterSpacing: 1.4,
   },
   heroTitle: {
@@ -1419,12 +1419,12 @@ const s = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 43,
     letterSpacing: -1,
-    color: "#372745",
+    color: "#1A202C",
   },
-  heroBody: { fontSize: 14, lineHeight: 24, color: "#72657E", marginTop: 13 },
+  heroBody: { fontSize: 14, lineHeight: 24, color: "#596675", marginTop: 13 },
   promptBox: {
     borderWidth: 1,
-    borderColor: "#E8E0F0",
+    borderColor: "#DDE5ED",
     borderRadius: 14,
     padding: 9,
     paddingLeft: 15,
@@ -1436,7 +1436,7 @@ const s = StyleSheet.create({
     maxWidth: 475,
     minHeight: 58,
   },
-  promptText: { fontSize: 13, color: "#827491", flex: 1 },
+  promptText: { fontSize: 13, color: "#596675", flex: 1 },
   promptArrow: {
     width: 36,
     height: 36,
@@ -1445,7 +1445,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  writerMode: { fontSize: 11, color: "#766586", marginTop: 10 },
+  writerMode: { fontSize: 11, color: "#596675", marginTop: 10 },
   heroArt: {
     width: 270,
     height: 230,
@@ -1456,11 +1456,12 @@ const s = StyleSheet.create({
     width: 190,
     height: 190,
     borderRadius: 95,
+    backgroundColor: C.lilac,
     justifyContent: "center",
     alignItems: "center",
     transform: [{ rotate: "-18deg" }],
     boxShadow:
-      "inset 10px 10px 25px rgba(255,255,255,0.8), 0 22px 44px rgba(134,91,199,0.2)",
+      "inset 10px 10px 25px rgba(255,255,255,0.8), 0 22px 44px rgba(22,139,209,0.10)",
   },
   orbInner: {
     width: 151,
@@ -1472,37 +1473,29 @@ const s = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  orbStar: {
-    fontSize: 88,
-    lineHeight: 112,
-    color: "#FFFBFF",
-    fontWeight: "300",
-    textShadowColor: "#9370BB66",
-    textShadowRadius: 14,
-  },
   floatingTag: {
     position: "absolute",
     paddingHorizontal: 15,
     paddingVertical: 12,
     backgroundColor: "#FFFFFFF5",
     borderWidth: 1,
-    borderColor: "#EEE9F7",
+    borderColor: "#E2E8F0",
     borderRadius: 12,
     flexDirection: "row",
     gap: 8,
     alignItems: "center",
     zIndex: 2,
-    boxShadow: "0 5px 18px rgba(71,41,97,0.05)",
+    boxShadow: "0 5px 18px rgba(26,32,44,0.05)",
   },
-  floatingTagText: { fontSize: 11, fontWeight: "500", color: "#655477" },
-  tagDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#B699ED" },
+  floatingTagText: { fontSize: 11, fontWeight: "500", color: "#52616B" },
+  tagDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#168BD1" },
   orbitRing: {
     position: "absolute",
     width: 246,
     height: 170,
     borderRadius: 123,
     borderWidth: 1,
-    borderColor: "#CAB4E777",
+    borderColor: "#BADDED77",
     transform: [{ rotate: "-30deg" }],
   },
   goalGrid: { flexDirection: "row", gap: 16 },
@@ -1596,8 +1589,8 @@ const s = StyleSheet.create({
     gap: 4,
     marginTop: 28,
   },
-  deliveryLine: { flex: 5, backgroundColor: "#AC94DD", borderRadius: 4 },
-  deliveryLight: { flex: 1, backgroundColor: "#E8DCF8", borderRadius: 4 },
+  deliveryLine: { flex: 5, backgroundColor: "#168BD1", borderRadius: 4 },
+  deliveryLight: { flex: 1, backgroundColor: "#DDEFF9", borderRadius: 4 },
   settingsActions: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1657,7 +1650,7 @@ const s = StyleSheet.create({
     bottom: 90,
     alignSelf: "center",
     maxWidth: "90%",
-    backgroundColor: "#332943",
+    backgroundColor: "#243746",
     paddingVertical: 15,
     paddingHorizontal: 19,
     borderRadius: 15,
@@ -1667,7 +1660,7 @@ const s = StyleSheet.create({
     boxShadow: "0 8px 32px rgba(30,20,48,0.18)",
   },
   toastText: { fontSize: 14, lineHeight: 21, color: C.white, flexShrink: 1 },
-  messagePreview: { padding: 21, borderRadius: 18, backgroundColor: "#F2EDF9" },
+  messagePreview: { padding: 21, borderRadius: 18, backgroundColor: "#EFF7FC" },
   helpIntro: { gap: 13, paddingBottom: 5 },
   faq: { borderBottomWidth: 1, borderBottomColor: C.border },
   faqButton: {

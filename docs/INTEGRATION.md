@@ -108,6 +108,12 @@ The reviewed API supports `MO` and `DR` webhook registration with an optional to
 
 Minimize retained customer data, redact message bodies and tokens from operational logs, define retention/deletion/export behavior, and record access/send audit events. Send push notifications only to authorized account devices; default to minimal lock-screen content. Push delivery requires separately configured native credentials and real-device testing.
 
+### Welcome and session boundary
+
+`src/access.tsx` currently holds an in-memory `welcome` / `demo` choice. The root layout gates every workspace route behind explicit demo entry. Opening SAM in the browser does not set an authenticated state; no password field, token storage, callback, or unverified auth endpoint is implemented. Leaving the demo unmounts its provider and returns to welcome without deleting local fictional drafts. Reloading the app returns to welcome. This is a preview entry boundary, not a security control for real data.
+
+Production requires SAM's approved mobile login/SSO contract: an OIDC authorization-code/PKCE configuration or an approved session-exchange flow; redirect registration; refresh, expiry, logout and revocation behavior; and user-to-business/role mapping. Deploy the business-controlled HTTPS backend and runtime secret storage separately from GitHub's diagnostic workflow. Only then add secure native session storage, server-enforced tenant authorization, cache clearing on logout/account change, and real account data. Never promote the local demo choice or browser session into an authenticated identity.
+
 ### Billing integration
 
 The Billing tab currently uses demonstration information. Sample plan details, balances, usage, invoices, and payment-method references are not assertions about the user's SAM account. No charge, purchase, subscription modification, card update, or invoice payment is performed by the demo.
