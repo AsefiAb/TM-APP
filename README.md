@@ -2,7 +2,7 @@
 
 A mobile companion for business owners using the current [SAM AI workspace](https://sam3.txhd.io/), built with Expo 57, React Native, TypeScript, and Expo Router. The 0.2 redesign centers the everyday work: prepare campaigns, handle the inbox, and check billing. Writing assistance stays inside the campaign workflow. One application targets iOS, Android, and a responsive browser preview.
 
-**Status: working local demo, not a production-connected app or a published store release.** Contacts, conversations, activity, and billing information are fictional. Writer uses deterministic offline templates, not a live SAM AI service. No live SMS request or billing transaction is made. Account passwords, API keys, private customer data, and signing credentials are not included.
+**Status: interactive customer-flow design, not a production-connected app or a published store release.** The current entry flow opens an empty session-only workspace. Create account and Sign in show the intended screens but do not create or authenticate accounts. Entered credentials stay in component memory and are discarded when the form closes; do not use a real password for testing. Writer uses deterministic offline templates. No live SMS request or billing transaction is made, and no provider keys or signing credentials are included.
 
 ## Try it
 
@@ -13,7 +13,7 @@ npm ci
 npm run web
 ```
 
-For a phone-shaped browser preview, open `/phone.html` on the web preview server. It displays the same app in a 390 × 844 screen inside a scaled phone frame. Native iOS and Android builds do not include the outer browser frame.
+For the phone-shaped view, open `/phone.html` on the web server. The outer heading is **Mobile testing campaigns**. It displays the same app in a 390 × 844 screen inside a scaled phone frame. Native iOS and Android builds do not include the outer browser frame.
 
 For a phone or simulator:
 
@@ -25,21 +25,20 @@ The project includes `expo-dev-client`; the recommended device path is an EAS de
 
 ## Included
 
-- A branded welcome screen with **Preview sign up**, **Preview sign in**, and a direct **Explore the demo** shortcut. The signup walkthrough includes example email confirmation and business setup; sign-in and password-reset previews use fixed sample details without accepting credentials or sending emails. Both paths lead to the Home dashboard. **Leave demo** returns to welcome while keeping saved demo drafts.
-- A separate **Open SAM website sign-in** action opens the existing SAM website; it does not authenticate the mobile app. Every workspace route requires explicit demo entry until the approved customer-login integration exists.
+- A branded welcome screen with **Create account** and **Sign in**. Signup proceeds through Account and Business to an empty Home dashboard with the entered business name. No simulated email verification or account-created confirmation is shown. Sign out returns to welcome. This is a local UI flow until approved customer authentication is implemented.
+- Password reset opens the existing SAM website; it does not send an email or authenticate the mobile app. Every workspace route first shows welcome.
 - The official SAM wordmark, blue controls, neutral surfaces, and outline graphics drawn from the current SAM application. Mobile navigation keeps the five everyday destinations.
 - Five primary destinations: Home, Campaigns, Inbox, Audience, and Billing; settings are available from the header.
-- An owner-focused Home with quick actions for campaigns, inbox, and billing, followed by items needing attention and a short optional getting-started guide.
+- A first-time Home with zero subscribers and drafts, plus simple actions to add subscribers, create a campaign, and check the inbox.
 - Writing assistance inside campaign creation: offer, reconnection, and update starters plus tone choices. Suggestions use the details you supply and remain editable; the interface identifies this as offline template assistance.
 - Guided offer examples for 20% off, $10 off, and a free add-on, with business name, qualifying purchase, expiration, and redemption instructions. An optional online path uses a code the owner has already created and tested in their checkout. The helper writes message copy; it does not configure a register, create a real coupon, or apply a discount.
 - An interactive one-use-code walkthrough explains staff checks and repeat redemption using a clearly labeled fictional example. Real code validation and redemption tracking require a connected service.
 - A three-step SMS composer: Message, Audience, and Review, with suggested campaign names, subscribed-audience counts, opt-out text, and GSM/Unicode segment estimates.
 - **Use again:** reuse a past campaign from its details or choose **Use a past message** in a blank composer. The copy starts at Message with editable text and name, a reminder to check dates and offers, and a fresh audience review. It becomes a separate local draft only when saved; old schedules and results are not copied.
-- Editable local drafts and schedule previews in the device's time zone. Draft edits preserve campaign identity; schedules **do not execute**.
-- Searchable inbox, read/unread tracking, locally saved replies, and opted-out recipient blocking.
-- Searchable contact groups, subscription status, and contact details.
-- A Billing demo for exploring account information. Sample amounts and billing records are not the owner's actual plan, balance, payment method, or invoices; no charge, purchase, or plan change is performed. The account-settings link opens the verified SAM web page, not an assumed payment portal.
-- Local persistence with schema validation, serialized saves, saved guide progress, and a demo reset.
+- Editable session-only drafts, including preparing a message before an audience exists. Draft edits preserve identity. Live sending and scheduling are unavailable.
+- Empty Inbox and Audience screens with guidance and links to the existing SAM website; no fictional customers are presented as a new owner's records.
+- Billing without invented balances, plans, or invoices. The account-settings link opens the verified SAM web page; live billing data remains unconnected.
+- An isolated in-memory workspace that leaves previously saved demo drafts untouched. Refreshing or signing out clears the new session. The legacy demonstration screens and persistence implementation remain in source for reference.
 - Responsive navigation, screen-reader labels, native safe areas, app icons, EAS profiles, and a GitHub checks workflow.
 - A server-only API v1 read adapter and manually triggered GitHub connection check for account information, groups, campaigns, incoming messages, and subscribers. The mobile app remains disconnected from these services.
 
@@ -74,7 +73,7 @@ See [integration plan and verified sources](docs/INTEGRATION.md), [store release
 | Path                                                          | Purpose                                                         |
 | ------------------------------------------------------------- | --------------------------------------------------------------- |
 | `src/app/`                                                    | Expo Router screens and shared provider layout                  |
-| `src/workspace.tsx`, `src/sam-workspace.tsx`                  | Route entry and owner workspace navigation                      |
+| `src/workspace.tsx`, `src/customer-workspace.tsx`             | Route entry and first-customer workspace navigation             |
 | `src/screens.tsx`, `src/campaign-composer.tsx`, `src/ui.tsx`  | Core screens, guided campaign flow, and shared controls         |
 | `src/store.tsx`                                               | Device-only demo persistence                                    |
 | `src/domain.ts`                                               | Pure business rules and fictional seed data                     |

@@ -1,1 +1,1 @@
-export { Workspace } from "./sam-workspace";
+export { Workspace } from "./customer-workspace";

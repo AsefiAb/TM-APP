@@ -81,12 +81,14 @@ export function CampaignComposer({
   initial,
   seed,
   goal,
+  customerMode = false,
   onSaved,
   onDirtyChange,
 }: {
   initial?: Campaign;
   seed?: CampaignSeed;
   goal?: CampaignGoal;
+  customerMode?: boolean;
   onSaved: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -114,10 +116,10 @@ export function CampaignComposer({
   const [details, setDetails] = useState("");
   const [offerDraft, setOfferDraft] = useState(emptyOfferDraft);
   const [timing, setTiming] = useState<Timing>(
-    initial?.scheduledAt ? "keep" : "draft",
+    !customerMode && initial?.scheduledAt ? "keep" : "draft",
   );
   const [scheduledAt, setScheduledAt] = useState<string | undefined>(
-    initial?.scheduledAt,
+    customerMode ? undefined : initial?.scheduledAt,
   );
   const [messageError, setMessageError] = useState("");
   const [detailsError, setDetailsError] = useState("");
@@ -125,7 +127,9 @@ export function CampaignComposer({
   const [nameError, setNameError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [timingError, setTimingError] = useState(() =>
-    initial?.scheduledAt && Date.parse(initial.scheduledAt) <= Date.now()
+    !customerMode &&
+    initial?.scheduledAt &&
+    Date.parse(initial.scheduledAt) <= Date.now()
       ? EXPIRED_TIMING
       : "",
   );
@@ -177,7 +181,7 @@ export function CampaignComposer({
   };
 
   const continueToReview = () => {
-    if (!recipients) {
+    if (!recipients && !customerMode) {
       setAudienceError(
         "This audience has no subscribed contacts. Choose another group.",
       );
@@ -257,7 +261,8 @@ export function CampaignComposer({
           name,
           body: fullMessage,
           audience,
-          scheduledAt,
+          scheduledAt: customerMode ? undefined : scheduledAt,
+          allowEmptyDraft: customerMode,
         }),
       );
       onSaved();
@@ -355,7 +360,9 @@ export function CampaignComposer({
                 {pastOpen && (
                   <View style={styles.reuseList}>
                     <Text style={ui.help}>
-                      Recent sent campaigns · sample history
+                      {customerMode
+                        ? "Recent sent campaigns"
+                        : "Recent sent campaigns · sample history"}
                     </Text>
                     {pastCampaigns.map((campaign) => (
                       <Pressable
@@ -403,8 +410,10 @@ export function CampaignComposer({
               <View style={ui.grow}>
                 <Text style={styles.optionTitle}>Make it fresh</Text>
                 <Text style={ui.help}>
-                  Check dates, prices, and offer details. You’ll review the
-                  audience and timing next.
+                  Check dates, prices, and offer details. You’ll review the{" "}
+                  {customerMode
+                    ? "audience next."
+                    : "audience and timing next."}
                 </Text>
               </View>
             </View>
@@ -463,6 +472,7 @@ export function CampaignComposer({
                 </View>
                 {writerGoal === "promotion" ? (
                   <OfferBuilder
+                    customerMode={customerMode}
                     draft={offerDraft}
                     onChange={setOfferDraft}
                     hasMessage={Boolean(body.trim())}
@@ -630,6 +640,12 @@ export function CampaignComposer({
               </Text>
             </View>
           </View>
+          {customerMode && !recipients && (
+            <Text style={ui.help}>
+              No subscribers yet. You can save your message as a draft and add
+              subscribers later.
+            </Text>
+          )}
           <View style={styles.actionRow}>
             <Button
               title="Back"
@@ -661,7 +677,9 @@ export function CampaignComposer({
               <View style={styles.senderAvatar}>
                 <Icon name="briefcase" size={22} color={C.primary} />
               </View>
-              <Text style={styles.senderName}>Your business · preview</Text>
+              <Text style={styles.senderName}>
+                {customerMode ? "Your business" : "Your business · preview"}
+              </Text>
               <Text style={ui.help}>Text message</Text>
             </View>
             <View style={styles.messageBubble}>
@@ -711,48 +729,55 @@ export function CampaignComposer({
             For your team only. Customers will not see this name.
           </Text>
 
-          <View style={styles.heading}>
-            <Text style={styles.fieldLabel}>When should this happen?</Text>
-            <Text style={ui.help}>Preview timing · {timeZone}</Text>
-          </View>
-          <View style={styles.choiceList}>
-            {initial?.scheduledAt && (
-              <TimingOption
-                selected={timing === "keep"}
-                title="Keep current schedule"
-                detail={displayDate(initial.scheduledAt)}
-                onPress={() => chooseTiming("keep")}
-              />
-            )}
-            <TimingOption
-              selected={timing === "draft"}
-              title="Save draft"
-              detail="Come back and finish it when you are ready"
-              onPress={() => chooseTiming("draft")}
-            />
-            <TimingOption
-              selected={timing === "tomorrow"}
-              title="Tomorrow at 10 AM"
-              detail="A fresh start to the next day"
-              onPress={() => chooseTiming("tomorrow")}
-            />
-            <TimingOption
-              selected={timing === "later"}
-              title="In 2 hours"
-              detail="Give yourself a little time to prepare"
-              onPress={() => chooseTiming("later")}
-            />
-          </View>
-          {timingError ? (
-            <Text accessibilityRole="alert" style={ui.error}>
-              {timingError}
-            </Text>
-          ) : null}
+          {!customerMode && (
+            <>
+              <View style={styles.heading}>
+                <Text style={styles.fieldLabel}>When should this happen?</Text>
+                <Text style={ui.help}>Preview timing · {timeZone}</Text>
+              </View>
+              <View style={styles.choiceList}>
+                {initial?.scheduledAt && (
+                  <TimingOption
+                    selected={timing === "keep"}
+                    title="Keep current schedule"
+                    detail={displayDate(initial.scheduledAt)}
+                    onPress={() => chooseTiming("keep")}
+                  />
+                )}
+                <TimingOption
+                  selected={timing === "draft"}
+                  title="Save draft"
+                  detail="Come back and finish it when you are ready"
+                  onPress={() => chooseTiming("draft")}
+                />
+                <TimingOption
+                  selected={timing === "tomorrow"}
+                  title="Tomorrow at 10 AM"
+                  detail="A fresh start to the next day"
+                  onPress={() => chooseTiming("tomorrow")}
+                />
+                <TimingOption
+                  selected={timing === "later"}
+                  title="In 2 hours"
+                  detail="Give yourself a little time to prepare"
+                  onPress={() => chooseTiming("later")}
+                />
+              </View>
+              {timingError ? (
+                <Text accessibilityRole="alert" style={ui.error}>
+                  {timingError}
+                </Text>
+              ) : null}
+            </>
+          )}
 
           <Card style={styles.summary}>
             <View style={ui.between}>
               <Text style={styles.fieldLabel}>Your campaign</Text>
-              <Badge label="Preview only" tone="purple" />
+              <Badge
+                label={customerMode ? "Draft" : "Preview only"}
+                tone="purple"
+              />
             </View>
             <View style={styles.summaryLine}>
               <Icon name="users" size={19} color={C.muted} />
@@ -768,14 +793,17 @@ export function CampaignComposer({
             <View style={styles.summaryLine}>
               <Icon name="clock" size={19} color={C.muted} />
               <Text style={[ui.body, ui.grow]}>
-                {scheduledAt
-                  ? `${displayDate(scheduledAt)} · ${timeZone}`
-                  : "Saved as a draft on this device"}
+                {customerMode
+                  ? "Saved for this session"
+                  : scheduledAt
+                    ? `${displayDate(scheduledAt)} · ${timeZone}`
+                    : "Saved as a draft on this device"}
               </Text>
             </View>
             <Text style={[ui.body, ui.muted]}>
-              Nothing will be sent. This saves a local preview for you to
-              explore.
+              {customerMode
+                ? "This saves your draft for this session. No messages will be sent."
+                : "Nothing will be sent. This saves a local preview for you to explore."}
             </Text>
           </Card>
           {saveError ? (
@@ -791,7 +819,11 @@ export function CampaignComposer({
             />
             <View style={ui.grow}>
               <Button
-                title={scheduledAt ? "Save preview schedule" : "Save draft"}
+                title={
+                  !customerMode && scheduledAt
+                    ? "Save preview schedule"
+                    : "Save draft"
+                }
                 icon="check"
                 disabled={!ready}
                 onPress={save}

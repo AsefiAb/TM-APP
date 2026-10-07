@@ -88,6 +88,14 @@ The welcome screen was reduced to a short headline, two main preview actions, an
 
 The simplified signup and sign-in/reset paths were completed in the phone frame. Signup steps start at the top after their keyed scroll container mounts. The campaign example helper, Inbox, and Billing opened inside the frame, and re-entry still showed the existing seven campaigns. The outer Reload control returned to welcome. TypeScript, lint, and all three platform exports passed. One MutationObserver error appeared during browser automation; no MutationObserver reference exists in the exported app or phone shell, and no visible flow failed. Its source was not attributed to app code. Native device verification remains pending.
 
+### Customer-facing first-time flow
+
+The current phone heading is **Mobile testing campaigns**. The app uses clean **Create account** and **Sign in** labels. Signup has two steps, Account and Business; the entered business name appears on Home. Credentials are ephemeral form state, are never persisted or transmitted, and do not authenticate a SAM session. There is no simulated verification email or account-created confirmation. Password reset explicitly opens the SAM website.
+
+Entry now creates an empty in-memory workspace with zero contacts, conversations, and campaigns. It never reads, resets, or overwrites the older stored demonstration dataset. Sign-out and refresh discard this new session. Home offers three next steps, and the five main destinations retain simple empty states. Drafts can be prepared before subscribers are added; delivery and scheduling remain unavailable. Billing shows no invented balances, plans, or invoice amounts.
+
+Verified in the phone frame on October 6, 2026: required signup guidance, editable fictional account details, business setup, and Home with zero records. A zero-subscriber draft was saved, reopened, edited through the unsaved-changes guard, and saved again. Billing displayed the unconnected invoice state. Sign-out returned to welcome; the sign-in/reset/back path returned to a fresh Home with zero drafts. TypeScript, lint, all three platform exports, and 26 domain/SAM helper tests passed, including explicit empty-draft opt-in and rejection of zero-recipient scheduling. Real authentication and device testing remain pending.
+
 ## Remaining acceptance checks
 
 These checks remain pending and are not implied by the browser results above:

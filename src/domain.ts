@@ -42,7 +42,10 @@ export type AppData = {
 export type CampaignInput = Pick<
   Campaign,
   "name" | "body" | "audience" | "scheduledAt"
->;
+> & {
+  /** Allows preparing a draft before contacts are added; never permits scheduling. */
+  allowEmptyDraft?: boolean;
+};
 
 const MAX_NAME_LENGTH = 80;
 const MAX_MESSAGE_LENGTH = 1600;
@@ -367,7 +370,9 @@ export function createCampaign(
     );
   const body = normalizeMessage(input.body);
   const recipients = getAudienceContacts(data.contacts, input.audience).length;
-  if (!recipients)
+  const allowEmptyDraft =
+    input.allowEmptyDraft === true && input.scheduledAt === undefined;
+  if (!recipients && !allowEmptyDraft)
     throw new Error(
       "This audience has no subscribed contacts. Choose another audience.",
     );

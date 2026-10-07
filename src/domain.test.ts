@@ -134,6 +134,47 @@ test("future scheduling normalizes timezone and rejects past, equal, or invalid 
   );
 });
 
+test("an explicit empty-draft option permits preparation without changing scheduling or default validation", () => {
+  const data = {
+    ...createSeedData(),
+    contacts: [],
+    conversations: [],
+    campaigns: [],
+  };
+  const input = {
+    name: "Our first offer",
+    body: "Your business: Come say hello.",
+    audience: "All subscribers" as const,
+  };
+  assert.throws(() => createCampaign(data, input), /no subscribed contacts/);
+  assert.throws(
+    () => createCampaign(data, { ...input, allowEmptyDraft: false }),
+    /no subscribed contacts/,
+  );
+  const updated = createCampaign(data, { ...input, allowEmptyDraft: true });
+  assert.equal(updated.campaigns[0].status, "draft");
+  assert.equal(updated.campaigns[0].recipients, 0);
+  assert.equal(updated.campaigns[0].scheduledAt, undefined);
+  assert.equal("allowEmptyDraft" in updated.campaigns[0], false);
+  assert.equal(data.campaigns.length, 0);
+  assert.equal(isAppData(updated), true);
+  assert.throws(
+    () => createCampaign(data, { ...input, allowEmptyDraft: true, body: " " }),
+    /message/,
+  );
+  for (const scheduledAt of ["2026-10-07T12:00:00Z", "", "invalid"]) {
+    assert.throws(
+      () =>
+        createCampaign(
+          data,
+          { ...input, allowEmptyDraft: true, scheduledAt },
+          new Date("2026-10-06T12:00:00Z"),
+        ),
+      /no subscribed contacts/,
+    );
+  }
+});
+
 test("campaign creation enforces message, name, and audience validation", () => {
   const data = createSeedData();
   const input = {

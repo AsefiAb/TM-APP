@@ -5,20 +5,15 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import {
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Brand, Button, C, Icon, ui } from "./ui";
-import { AuthPreviewPath, AuthWalkthrough } from "./auth-walkthrough";
+import { Brand, Button, C } from "./ui";
+import { AuthPath, AuthWalkthrough } from "./auth-walkthrough";
 
 type Access = {
   mode: "welcome" | "demo";
+  businessName: string;
+  completeSetup: (name: string) => void;
   enterDemo: () => void;
   leaveDemo: () => void;
 };
@@ -28,11 +23,19 @@ const AccessContext = createContext<Access | null>(null);
 /** A preview choice only. It is not an authenticated session or security gate. */
 export function AccessProvider({ children }: React.PropsWithChildren) {
   const [mode, setMode] = useState<Access["mode"]>("welcome");
+  const [businessName, setBusinessName] = useState("Your business");
   const enterDemo = useCallback(() => setMode("demo"), []);
-  const leaveDemo = useCallback(() => setMode("welcome"), []);
+  const leaveDemo = useCallback(() => {
+    setBusinessName("Your business");
+    setMode("welcome");
+  }, []);
+  const completeSetup = useCallback((name: string) => {
+    setBusinessName(name.trim() || "Your business");
+    setMode("demo");
+  }, []);
   const value = useMemo(
-    () => ({ mode, enterDemo, leaveDemo }),
-    [mode, enterDemo, leaveDemo],
+    () => ({ mode, businessName, completeSetup, enterDemo, leaveDemo }),
+    [mode, businessName, completeSetup, enterDemo, leaveDemo],
   );
   return (
     <AccessContext.Provider value={value}>{children}</AccessContext.Provider>
@@ -46,32 +49,16 @@ export function useAccess() {
 }
 
 export function WelcomeScreen() {
-  const { enterDemo } = useAccess();
-  const [opening, setOpening] = useState(false);
-  const [error, setError] = useState("");
-  const [previewPath, setPreviewPath] = useState<AuthPreviewPath | null>(null);
+  const { enterDemo, completeSetup } = useAccess();
+  const [authPath, setAuthPath] = useState<AuthPath | null>(null);
 
-  async function openSam() {
-    setError("");
-    setOpening(true);
-    try {
-      // Opening the website never changes this app's access mode.
-      await Linking.openURL("https://sam3.txhd.io/");
-    } catch {
-      setError(
-        "SAM could not open. Try again, or visit sam3.txhd.io in your browser.",
-      );
-    } finally {
-      setOpening(false);
-    }
-  }
-
-  if (previewPath) {
+  if (authPath) {
     return (
       <AuthWalkthrough
-        initialPath={previewPath}
-        onBack={() => setPreviewPath(null)}
+        initialPath={authPath}
+        onBack={() => setAuthPath(null)}
         onEnterDemo={enterDemo}
+        onCompleteSetup={completeSetup}
       />
     );
   }
@@ -94,52 +81,14 @@ export function WelcomeScreen() {
           </View>
           <View style={s.actions}>
             <Button
-              title="Preview sign up"
-              onPress={() => setPreviewPath("signup")}
+              title="Create account"
+              onPress={() => setAuthPath("signup")}
             />
             <Button
-              title="Preview sign in"
+              title="Sign in"
               variant="secondary"
-              onPress={() => setPreviewPath("signin")}
+              onPress={() => setAuthPath("signin")}
             />
-            <Button
-              title="Explore the demo"
-              icon="arrow-right"
-              variant="ghost"
-              onPress={enterDemo}
-            />
-            <Text style={s.previewNote}>
-              Sample details. No account created or messages sent.
-            </Text>
-          </View>
-          <View style={s.website}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                opening ? "Opening SAM…" : "Open SAM website sign-in"
-              }
-              accessibilityState={{ disabled: opening }}
-              disabled={opening}
-              onPress={openSam}
-              style={({ pressed }) => [s.websiteLink, pressed && s.pressed]}
-            >
-              <Text style={s.websiteText}>
-                {opening ? "Opening SAM…" : "Open SAM website sign-in"}
-              </Text>
-              <Icon name="external-link" size={14} color={C.primary} />
-            </Pressable>
-            <Text style={s.connectionNote}>
-              For your real account. Mobile sign-in is not connected yet.
-            </Text>
-            {error ? (
-              <Text
-                accessibilityRole="alert"
-                accessibilityLiveRegion="polite"
-                style={ui.error}
-              >
-                {error}
-              </Text>
-            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -166,37 +115,4 @@ const s = StyleSheet.create({
   },
   subtitle: { color: C.muted, fontSize: 15, lineHeight: 23 },
   actions: { gap: 10 },
-  previewNote: {
-    color: C.muted,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: "center",
-    paddingHorizontal: 8,
-  },
-  website: {
-    gap: 2,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
-  },
-  websiteLink: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
-  websiteText: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: C.primary,
-    fontWeight: "600",
-  },
-  connectionNote: {
-    color: C.muted,
-    fontSize: 11,
-    lineHeight: 17,
-    textAlign: "center",
-  },
-  pressed: { opacity: 0.65 },
 });

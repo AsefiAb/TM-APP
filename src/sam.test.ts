@@ -249,6 +249,49 @@ test("scheduled demo campaigns can be revised or returned to a draft", () => {
   );
 });
 
+test("empty-audience draft creation and editing require explicit opt-in on every save", () => {
+  const data = {
+    ...createSeedData(),
+    contacts: [],
+    conversations: [],
+    campaigns: [],
+  };
+  const input = {
+    name: "Our first offer",
+    body: "Your business: A new offer is coming soon.",
+    audience: "All subscribers" as const,
+    allowEmptyDraft: true,
+  };
+  const created = saveCampaign(data, input);
+  const id = created.campaigns[0].id;
+  const edited = saveCampaign(created, {
+    ...input,
+    id,
+    name: "Our welcome offer",
+  });
+  assert.equal(edited.campaigns.length, 1);
+  assert.equal(edited.campaigns[0].id, id);
+  assert.equal(edited.campaigns[0].name, "Our welcome offer");
+  assert.equal(edited.campaigns[0].recipients, 0);
+  assert.equal(edited.campaigns[0].status, "draft");
+  assert.equal(isAppData(edited), true);
+  assert.throws(
+    () => saveCampaign(created, { ...input, id, allowEmptyDraft: undefined }),
+    /no subscribed contacts/,
+  );
+  assert.throws(
+    () =>
+      saveCampaign(created, {
+        ...input,
+        id,
+        scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+      }),
+    /no subscribed contacts/,
+  );
+  assert.equal(created.campaigns[0].status, "draft");
+  assert.equal(created.campaigns[0].name, input.name);
+});
+
 test("sent campaigns and missing campaign IDs cannot be edited", () => {
   const data = createSeedData();
   const input = {

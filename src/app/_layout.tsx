@@ -24,7 +24,7 @@ function AppContent() {
   if (mode === "welcome") return <WelcomeScreen />;
 
   return (
-    <DemoProvider>
+    <DemoProvider fresh>
       <Stack
         screenOptions={{
           headerShown: false,

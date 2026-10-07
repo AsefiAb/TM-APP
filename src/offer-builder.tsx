@@ -9,6 +9,7 @@ type OfferBuilderProps = {
   onChange: (draft: OfferDraft) => void;
   onUseMessage: (message: string) => void;
   hasMessage: boolean;
+  customerMode?: boolean;
 };
 
 const examples: { kind: OfferDraft["kind"]; label: string }[] = [
@@ -28,6 +29,7 @@ export function OfferBuilder({
   onChange,
   onUseMessage,
   hasMessage,
+  customerMode = false,
 }: OfferBuilderProps) {
   const [attempted, setAttempted] = useState(false);
   const [exampleNotice, setExampleNotice] = useState("");
@@ -280,7 +282,9 @@ export function OfferBuilder({
       <View style={s.preview}>
         <View style={ui.row}>
           <Icon name="message-square" size={18} color={C.primary} />
-          <Text style={[s.label, ui.grow]}>Customer message preview</Text>
+          <Text style={[s.label, ui.grow]}>
+            {customerMode ? "Customer message" : "Customer message preview"}
+          </Text>
         </View>
         {message ? (
           <Text style={ui.body}>{withOptOut(message)}</Text>
@@ -330,76 +334,79 @@ export function OfferBuilder({
               enforce this. An unused code can be forwarded, so staff still need
               to verify the customer and offer conditions.
             </Text>
-            <View style={s.demoCard}>
-              <Badge label="Example only—no real coupon" tone="amber" />
-              <Text style={s.demoCode}>DEMO-7Q2K</Text>
-              <Text style={ui.help}>Assigned to one fictional customer.</Text>
-              <View accessibilityLiveRegion="polite" style={s.demoStatus}>
-                <Icon
-                  name={
-                    demoStep === "rejected"
-                      ? "x-circle"
-                      : demoStep === "used"
-                        ? "check-circle"
-                        : "tag"
-                  }
-                  color={demoStep === "rejected" ? "#AC314F" : C.primary}
-                  size={20}
-                />
-                <Text style={[s.label, ui.grow]}>
-                  {demoStep === "ready"
-                    ? "Ready to check (demo)"
-                    : demoStep === "valid"
-                      ? "Valid (demo)"
-                      : demoStep === "used"
-                        ? "Used (demo)"
-                        : "Already used (demo)"}
-                </Text>
-              </View>
-              {demoStep === "ready" ? (
-                <Button
-                  title="Check example"
-                  variant="secondary"
-                  onPress={() => setDemoStep("valid")}
-                />
-              ) : null}
-              {demoStep === "valid" ? (
-                <>
-                  <Text style={ui.help}>
-                    In a real system, staff would verify the customer before
-                    confirming redemption.
-                  </Text>
-                  <Button
-                    title="Confirm example redemption"
-                    onPress={() => setDemoStep("used")}
+            {!customerMode && (
+              <View style={s.demoCard}>
+                <Badge label="Example only—no real coupon" tone="amber" />
+                <Text style={s.demoCode}>DEMO-7Q2K</Text>
+                <Text style={ui.help}>Assigned to one fictional customer.</Text>
+                <View accessibilityLiveRegion="polite" style={s.demoStatus}>
+                  <Icon
+                    name={
+                      demoStep === "rejected"
+                        ? "x-circle"
+                        : demoStep === "used"
+                          ? "check-circle"
+                          : "tag"
+                    }
+                    color={demoStep === "rejected" ? "#AC314F" : C.primary}
+                    size={20}
                   />
-                </>
-              ) : null}
-              {demoStep === "used" ? (
-                <Button
-                  title="Check same code again"
-                  variant="secondary"
-                  onPress={() => setDemoStep("rejected")}
-                />
-              ) : null}
-              {demoStep === "rejected" ? (
-                <Text style={ui.help}>
-                  The example redemption record blocks a second use. A real
-                  service must enforce this across every device.
-                </Text>
-              ) : null}
-              {demoStep !== "ready" ? (
-                <Button
-                  title="Restart walkthrough"
-                  variant="ghost"
-                  icon="rotate-ccw"
-                  onPress={() => setDemoStep("ready")}
-                />
-              ) : null}
-            </View>
+                  <Text style={[s.label, ui.grow]}>
+                    {demoStep === "ready"
+                      ? "Ready to check (demo)"
+                      : demoStep === "valid"
+                        ? "Valid (demo)"
+                        : demoStep === "used"
+                          ? "Used (demo)"
+                          : "Already used (demo)"}
+                  </Text>
+                </View>
+                {demoStep === "ready" ? (
+                  <Button
+                    title="Check example"
+                    variant="secondary"
+                    onPress={() => setDemoStep("valid")}
+                  />
+                ) : null}
+                {demoStep === "valid" ? (
+                  <>
+                    <Text style={ui.help}>
+                      In a real system, staff would verify the customer before
+                      confirming redemption.
+                    </Text>
+                    <Button
+                      title="Confirm example redemption"
+                      onPress={() => setDemoStep("used")}
+                    />
+                  </>
+                ) : null}
+                {demoStep === "used" ? (
+                  <Button
+                    title="Check same code again"
+                    variant="secondary"
+                    onPress={() => setDemoStep("rejected")}
+                  />
+                ) : null}
+                {demoStep === "rejected" ? (
+                  <Text style={ui.help}>
+                    The example redemption record blocks a second use. A real
+                    service must enforce this across every device.
+                  </Text>
+                ) : null}
+                {demoStep !== "ready" ? (
+                  <Button
+                    title="Restart walkthrough"
+                    variant="ghost"
+                    icon="rotate-ccw"
+                    onPress={() => setDemoStep("ready")}
+                  />
+                ) : null}
+              </View>
+            )}
             <Text style={ui.help}>
-              This walkthrough runs on your device only. Real coupon validation,
-              customer checks, and redemption records are not connected.
+              {customerMode
+                ? "Your checkout system must track redemptions and verify customers. Writing an offer here does not create a redeemable coupon."
+                : "This walkthrough runs on your device only. Real coupon validation, customer checks, and redemption records are not connected."}
             </Text>
           </View>
         ) : null}

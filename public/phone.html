@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f1f5fa" />
-    <title>SAM AI mobile preview</title>
+    <title>Mobile testing campaigns</title>
     <style>
       * {
         box-sizing: border-box;
@@ -47,7 +47,7 @@
         display: flex;
         align-items: center;
         gap: 7px;
-        white-space: nowrap;
+        min-width: 0;
       }
 
       .label strong {
@@ -62,6 +62,7 @@
 
       .controls {
         display: flex;
+        flex-shrink: 0;
         align-items: center;
         gap: 4px;
       }
@@ -205,14 +206,14 @@
   <body>
     <header class="toolbar">
       <div class="label">
-        <strong>SAM AI</strong><span>· Mobile preview</span>
+        <strong>Mobile testing campaigns</strong>
       </div>
-      <nav class="controls" aria-label="Preview controls">
+      <nav class="controls" aria-label="App controls">
         <button id="reload" type="button">Reload</button>
         <a href="./" target="_blank" rel="noopener">Open larger</a>
       </nav>
     </header>
-    <main class="stage" aria-label="Phone preview">
+    <main class="stage" aria-label="Mobile app">
       <div class="phone-space">
         <div class="phone">
           <div class="speaker" aria-hidden="true"></div>

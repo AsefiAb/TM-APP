@@ -35,10 +35,17 @@ type Store = {
 };
 const Context = createContext<Store | null>(null);
 
-export function DemoProvider({ children }: React.PropsWithChildren) {
-  const [data, setData] = useState(createSeedData);
+function emptyWorkspace(): AppData {
+  return { version: 1, contacts: [], conversations: [], campaigns: [] };
+}
+
+export function DemoProvider({
+  children,
+  fresh = false,
+}: React.PropsWithChildren<{ fresh?: boolean }>) {
+  const [data, setData] = useState(fresh ? emptyWorkspace : createSeedData);
   const dataRef = useRef(data);
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(fresh);
   const [storageError, setStorageError] = useState("");
   const [guide, setGuide] = useState<GuideProgress>({
     ...defaultGuide,
@@ -49,6 +56,9 @@ export function DemoProvider({ children }: React.PropsWithChildren) {
   const replyDraftsRef = useRef(replyDrafts);
   const writes = useRef(Promise.resolve());
   useEffect(() => {
+    // First-time walkthroughs are session-only and never read or overwrite
+    // the separate, previously saved demonstration workspace.
+    if (fresh) return;
     let active = true;
     const loadData = AsyncStorage.getItem(KEY)
       .then((raw) => {
@@ -104,11 +114,12 @@ export function DemoProvider({ children }: React.PropsWithChildren) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [fresh]);
   const update = (next: AppData) => {
     if (!ready) return Promise.resolve(false);
     dataRef.current = next;
     setData(next);
+    if (fresh) return Promise.resolve(true);
     // Serialize writes so a slower older save cannot replace a newer edit.
     // Save deliberate edits only; a failed hydration must not overwrite saved data.
     const saved = writes.current
@@ -130,6 +141,7 @@ export function DemoProvider({ children }: React.PropsWithChildren) {
     if (!ready) return;
     guideRef.current = next;
     setGuide(next);
+    if (fresh) return;
     writes.current = writes.current
       .then(() => AsyncStorage.setItem(GUIDE_KEY, JSON.stringify(next)))
       .catch(() =>
@@ -142,6 +154,7 @@ export function DemoProvider({ children }: React.PropsWithChildren) {
     if (!ready) return;
     replyDraftsRef.current = next;
     setReplyDrafts(next);
+    if (fresh) return;
     // Only intentional typing, successful replies, or reset write this key.
     // Never overwrite the saved map with an empty hydration fallback.
     writes.current = writes.current
@@ -160,7 +173,7 @@ export function DemoProvider({ children }: React.PropsWithChildren) {
         storageError,
         update,
         reset: () => {
-          update(createSeedData());
+          update(fresh ? emptyWorkspace() : createSeedData());
           saveGuide({ hidden: false, completed: [] });
           saveReplyDrafts({});
         },

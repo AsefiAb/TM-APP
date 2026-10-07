@@ -125,6 +125,7 @@ type SaveCampaignInput = {
   body: string;
   audience: Campaign["audience"];
   scheduledAt?: string;
+  allowEmptyDraft?: boolean;
 };
 
 /** Create or revise a local campaign; no remote scheduling or delivery occurs. */
