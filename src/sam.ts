@@ -1,8 +1,18 @@
-import { AppData, Campaign, createCampaign } from "./domain";
+import {
+  AppData,
+  Campaign,
+  CampaignEstimate,
+  CampaignType,
+  createCampaign,
+} from "./domain";
 
 export type CampaignGoal = "promotion" | "reengage" | "update";
 export type WriterTone = "friendly" | "concise" | "energetic";
-export type CampaignSeed = Pick<Campaign, "name" | "body" | "audience">;
+export type CampaignSeed = Pick<Campaign, "name" | "body" | "audience"> & {
+  scheduledAt?: string;
+  ideaId?: string;
+  estimate?: CampaignEstimate;
+};
 
 export const goals: {
   id: CampaignGoal;
@@ -116,6 +126,8 @@ export function campaignToSeed(campaign: Campaign): CampaignSeed {
     name: `${name.trimEnd()}${suffix}`,
     body: campaign.body,
     audience: campaign.audience,
+    ...(campaign.ideaId ? { ideaId: campaign.ideaId } : {}),
+    ...(campaign.estimate ? { estimate: { ...campaign.estimate } } : {}),
   };
 }
 
@@ -124,7 +136,10 @@ type SaveCampaignInput = {
   name: string;
   body: string;
   audience: Campaign["audience"];
+  type?: CampaignType;
   scheduledAt?: string;
+  ideaId?: string;
+  estimate?: CampaignEstimate;
   allowEmptyDraft?: boolean;
 };
 
@@ -148,22 +163,4 @@ export function saveCampaign(data: AppData, input: SaveCampaignInput): AppData {
       campaign.id === existing.id ? updated : campaign,
     ),
   };
-}
-
-export type GuideProgress = { hidden: boolean; completed: string[] };
-
-export const defaultGuide: GuideProgress = { hidden: false, completed: [] };
-
-export function isGuideProgress(input: unknown): input is GuideProgress {
-  if (typeof input !== "object" || input === null || Array.isArray(input))
-    return false;
-  const value = input as Record<string, unknown>;
-  return (
-    typeof value.hidden === "boolean" &&
-    Array.isArray(value.completed) &&
-    value.completed.every((item) =>
-      ["writer", "campaign", "reply"].includes(item),
-    ) &&
-    new Set(value.completed).size === value.completed.length
-  );
 }

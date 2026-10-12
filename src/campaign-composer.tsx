@@ -1,18 +1,27 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Campaign, getAudienceContacts, getSmsInfo } from "./domain";
+import {
+  ALL_SUBSCRIBERS,
+  CAMPAIGN_TYPES,
+  Campaign,
+  CampaignType,
+  getAudienceContacts,
+  getGroups,
+  getSmsInfo,
+} from "./domain";
 import {
   CampaignGoal,
   CampaignSeed,
   WriterTone,
   campaignToSeed,
-  campaignTitle,
   saveCampaign,
   suggestMessage,
   withOptOut,
 } from "./sam";
-import { useDemo } from "./store";
+import { estimateImpact, formatMoney } from "./ideas";
+import { useWorkspace } from "./store";
 import { emptyOfferDraft } from "./offers";
+import { hasPassed, isPastDue, parseCustomDateTime, tomorrowMorning } from "./schedule";
 import { OfferBuilder } from "./offer-builder";
 import {
   Badge,
@@ -20,48 +29,45 @@ import {
   C,
   Card,
   Chips,
+  F,
   Icon,
   Input,
+  ProgressBar,
+  R,
+  Radio,
+  t,
   ui,
   useSheetScroll,
 } from "./ui";
 
-const STEPS = ["Message", "Audience", "Review"] as const;
+/** The five steps of the SAM 3.0 Create New Campaign wizard. */
+const STEPS = [
+  "Campaign Details",
+  "Message Content",
+  "Audience",
+  "Schedule",
+  "Review",
+] as const;
+
 const GOALS: { value: CampaignGoal; label: string; detail: string }[] = [
-  {
-    value: "promotion",
-    label: "Share an offer",
-    detail: "Give people a reason to visit",
-  },
-  {
-    value: "reengage",
-    label: "Reconnect",
-    detail: "Welcome your customers back",
-  },
-  {
-    value: "update",
-    label: "Send an update",
-    detail: "Keep your community in the loop",
-  },
+  { value: "promotion", label: "Share an offer", detail: "Give people a reason to visit" },
+  { value: "reengage", label: "Reconnect", detail: "Welcome your customers back" },
+  { value: "update", label: "Send an update", detail: "Keep your community in the loop" },
 ];
 const TONES: { value: WriterTone; label: string }[] = [
   { value: "friendly", label: "Friendly" },
   { value: "concise", label: "Concise" },
   { value: "energetic", label: "Energetic" },
 ];
-const AUDIENCES: { name: Campaign["audience"]; description: string }[] = [
-  {
-    name: "All subscribers",
-    description: "Everyone who can receive your messages",
-  },
-  { name: "VIP", description: "Your most loyal customers" },
-  { name: "Members", description: "People in your member community" },
-  { name: "Leads", description: "People getting to know your business" },
-];
+const TYPE_DETAILS: Record<CampaignType, string> = {
+  SMS: "Text message · up to 1,600 characters",
+  MMS: "Picture or video message · available in SAM on the web",
+  RCS: "Rich messaging · available in SAM on the web",
+};
 
-type Timing = "draft" | "keep" | "tomorrow" | "later";
+type Timing = "draft" | "keep" | "tomorrow" | "custom";
 const EXPIRED_TIMING =
-  "This preview time has passed. Choose a new time or save this as a draft.";
+  "That time has passed. Choose a later time or save this as a draft.";
 
 // The footer has its own visible home in the editor and is added once on save.
 function editableMessage(value: string) {
@@ -70,6 +76,7 @@ function editableMessage(value: string) {
 
 function displayDate(value: string) {
   return new Date(value).toLocaleString(undefined, {
+    weekday: "short",
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -77,87 +84,125 @@ function displayDate(value: string) {
   });
 }
 
+function splitDateTime(iso: string) {
+  const date = new Date(iso);
+  const hours = date.getHours();
+  return {
+    date: `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}/${date.getFullYear()}`,
+    time: `${hours % 12 || 12}:${String(date.getMinutes()).padStart(2, "0")}`,
+    meridiem: hours >= 12 ? ("PM" as const) : ("AM" as const),
+  };
+}
+
 export function CampaignComposer({
   initial,
   seed,
-  goal,
-  customerMode = false,
+  businessName,
+  startWithWriter = false,
   onSaved,
   onDirtyChange,
+  onDeleteRequest,
+  onMarkSentRequest,
 }: {
   initial?: Campaign;
+  /** Prefilled content from an idea or a reused campaign; saving creates a new campaign. */
   seed?: CampaignSeed;
-  goal?: CampaignGoal;
-  customerMode?: boolean;
-  onSaved: () => void;
+  businessName: string;
+  startWithWriter?: boolean;
+  onSaved: (message: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onDeleteRequest?: () => void;
+  onMarkSentRequest?: () => void;
 }) {
-  const { data, ready, update, completeGuide } = useDemo();
+  const { data, ready, update } = useWorkspace();
   const resetSheetScroll = useSheetScroll();
-  const startingValues = initial ?? seed;
+  const groups = getGroups(data);
+  const audiences = [ALL_SUBSCRIBERS, ...groups];
+  const editable = !initial || initial.status !== "sent";
+  const starting = initial ?? seed;
+  const ideaId = initial?.ideaId ?? seed?.ideaId;
+  const estimate = initial?.estimate ?? seed?.estimate;
+  const seedSchedule =
+    !initial && seed?.scheduledAt ? splitDateTime(seed.scheduledAt) : undefined;
+
   const [step, setStep] = useState(0);
-  const [body, setBody] = useState(() =>
-    editableMessage(startingValues?.body ?? ""),
-  );
-  const [name, setName] = useState(startingValues?.name ?? "");
-  const [audience, setAudience] = useState<Campaign["audience"]>(
-    startingValues?.audience ?? "All subscribers",
+  const [name, setName] = useState(starting?.name ?? "");
+  const [type, setType] = useState<CampaignType>(initial?.type ?? "SMS");
+  const [body, setBody] = useState(() => editableMessage(starting?.body ?? ""));
+  const [audience, setAudience] = useState(
+    starting && audiences.includes(starting.audience)
+      ? starting.audience
+      : ALL_SUBSCRIBERS,
   );
   const [pastOpen, setPastOpen] = useState(false);
   const [reusing, setReusing] = useState(Boolean(seed));
   const pastCampaigns = data.campaigns
     .filter((campaign) => campaign.status === "sent")
     .slice(0, 5);
-  const [writerOpen, setWriterOpen] = useState(Boolean(goal));
-  const [writerGoal, setWriterGoal] = useState<CampaignGoal>(
-    goal ?? "promotion",
-  );
+  const [writerOpen, setWriterOpen] = useState(startWithWriter);
+  const [writerGoal, setWriterGoal] = useState<CampaignGoal>("promotion");
   const [tone, setTone] = useState<WriterTone>("friendly");
   const [details, setDetails] = useState("");
-  const [offerDraft, setOfferDraft] = useState(emptyOfferDraft);
+  const [offerDraft, setOfferDraft] = useState(() => ({
+    ...emptyOfferDraft(),
+    businessName,
+  }));
   const [timing, setTiming] = useState<Timing>(
-    !customerMode && initial?.scheduledAt ? "keep" : "draft",
+    initial?.scheduledAt ? "keep" : seedSchedule ? "custom" : "draft",
   );
-  const [scheduledAt, setScheduledAt] = useState<string | undefined>(
-    customerMode ? undefined : initial?.scheduledAt,
+  const [customDate, setCustomDate] = useState(seedSchedule?.date ?? "");
+  const [customTime, setCustomTime] = useState(seedSchedule?.time ?? "");
+  const [meridiem, setMeridiem] = useState<"AM" | "PM">(
+    seedSchedule?.meridiem ?? "AM",
   );
+  const [nameError, setNameError] = useState("");
   const [messageError, setMessageError] = useState("");
   const [detailsError, setDetailsError] = useState("");
-  const [audienceError, setAudienceError] = useState("");
-  const [nameError, setNameError] = useState("");
-  const [saveError, setSaveError] = useState("");
   const [timingError, setTimingError] = useState(() =>
-    !customerMode &&
-    initial?.scheduledAt &&
-    Date.parse(initial.scheduledAt) <= Date.now()
-      ? EXPIRED_TIMING
-      : "",
+    initial && isPastDue(initial) ? EXPIRED_TIMING : "",
   );
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const scheduledAt: string | undefined = (() => {
+    if (timing === "keep") return initial?.scheduledAt;
+    if (timing === "tomorrow") return tomorrowMorning().toISOString();
+    if (timing === "custom") {
+      const parsed = parseCustomDateTime(customDate, customTime, meridiem);
+      return parsed ? parsed.toISOString() : undefined;
+    }
+    return undefined;
+  })();
 
   const dirty =
     reusing ||
-    JSON.stringify(offerDraft) !== JSON.stringify(emptyOfferDraft()) ||
-    body !== editableMessage(initial?.body ?? "") ||
     name !== (initial?.name ?? "") ||
-    audience !== (initial?.audience ?? "All subscribers") ||
+    type !== (initial?.type ?? "SMS") ||
+    body !== editableMessage(initial?.body ?? "") ||
+    audience !== (initial?.audience ?? ALL_SUBSCRIBERS) ||
     scheduledAt !== initial?.scheduledAt ||
     details !== "" ||
-    writerGoal !== (goal ?? "promotion") ||
-    tone !== "friendly";
+    JSON.stringify(offerDraft) !==
+      JSON.stringify({ ...emptyOfferDraft(), businessName });
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
 
   const fullMessage = withOptOut(body);
   const sms = getSmsInfo(fullMessage);
-  const recipients = getAudienceContacts(data.contacts, audience).length;
+  const recipients = getAudienceContacts(data.contacts, audience, groups).length;
   const audienceTotal = data.contacts.filter(
-    (contact) => audience === "All subscribers" || contact.group === audience,
+    (contact) => audience === ALL_SUBSCRIBERS || contact.group === audience,
   ).length;
   const excluded = audienceTotal - recipients;
-  const timeZone = Intl.DateTimeFormat()
-    .resolvedOptions()
-    .timeZone.replace(/_/g, " ");
+  let projected: ReturnType<typeof estimateImpact> | null = null;
+  if (estimate) {
+    try {
+      projected = estimateImpact({ recipients, segments: sms.segments, estimate });
+    } catch {
+      projected = null;
+    }
+  }
 
   const goToStep = (next: number) => {
     setStep(next);
@@ -165,9 +210,18 @@ export function CampaignComposer({
     resetSheetScroll();
   };
 
-  const continueToAudience = () => {
+  const continueFromDetails = () => {
+    if (!name.trim()) {
+      setNameError("Enter a campaign name.");
+      return;
+    }
+    setNameError("");
+    goToStep(1);
+  };
+
+  const continueFromMessage = () => {
     if (!/[\p{L}\p{N}]/u.test(editableMessage(body))) {
-      setMessageError("Write a message for your customers before continuing.");
+      setMessageError("Write a message for your subscribers before continuing.");
       return;
     }
     if (fullMessage.length > 1600) {
@@ -177,243 +231,274 @@ export function CampaignComposer({
       return;
     }
     setMessageError("");
-    goToStep(1);
+    goToStep(2);
   };
 
-  const continueToReview = () => {
-    if (!recipients && !customerMode) {
-      setAudienceError(
-        "This audience has no subscribed contacts. Choose another group.",
-      );
+  const continueFromSchedule = () => {
+    if (timing === "custom" && !scheduledAt) {
+      setTimingError("Enter the date as MM/DD/YYYY and the time as h:mm.");
       return;
     }
-    setAudienceError("");
-    if (!name.trim()) setName(campaignTitle(body));
-    setTimingError(
-      scheduledAt && Date.parse(scheduledAt) <= Date.now()
-        ? EXPIRED_TIMING
-        : "",
-    );
-    goToStep(2);
+    if (scheduledAt && hasPassed(scheduledAt)) {
+      setTimingError(EXPIRED_TIMING);
+      return;
+    }
+    setTimingError("");
+    goToStep(4);
   };
 
   const createStartingPoint = () => {
     if (!details.trim()) {
-      setDetailsError("Add the details you want your customers to know.");
+      setDetailsError("Add the details you want your subscribers to know.");
       return;
     }
     try {
-      const suggestion = suggestMessage({ goal: writerGoal, tone, details });
+      const suggestion = suggestMessage({
+        goal: writerGoal,
+        tone,
+        details,
+        businessName,
+      });
       setBody(editableMessage(suggestion));
-      completeGuide("writer");
       setDetailsError("");
       setMessageError("");
     } catch (error) {
       setDetailsError(
-        error instanceof Error
-          ? error.message
-          : "Check your details and try again.",
+        error instanceof Error ? error.message : "Check your details and try again.",
       );
     }
   };
 
-  const chooseTiming = (choice: Timing) => {
-    setTiming(choice);
-    setSaveError("");
-    setTimingError("");
-    if (choice === "draft") {
-      setScheduledAt(undefined);
-      return;
-    }
-    if (choice === "keep") {
-      setScheduledAt(initial?.scheduledAt);
-      setTimingError(
-        initial?.scheduledAt && Date.parse(initial.scheduledAt) <= Date.now()
-          ? EXPIRED_TIMING
-          : "",
-      );
-      return;
-    }
-    const date = new Date();
-    if (choice === "tomorrow") {
-      date.setDate(date.getDate() + 1);
-      date.setHours(10, 0, 0, 0);
-    } else {
-      date.setTime(date.getTime() + 2 * 60 * 60 * 1000);
-    }
-    setScheduledAt(date.toISOString());
-  };
-
-  const save = () => {
-    if (!name.trim()) {
-      setNameError("Give this campaign a name so you can find it later.");
-      return;
-    }
-    if (scheduledAt && Date.parse(scheduledAt) <= Date.now()) {
+  const save = async () => {
+    if (scheduledAt && hasPassed(scheduledAt)) {
       setTimingError(EXPIRED_TIMING);
+      goToStep(3);
       return;
     }
     if (!ready) return;
+    setSaving(true);
     try {
-      update(
-        saveCampaign(data, {
-          ...(initial ? { id: initial.id } : {}),
-          name,
-          body: fullMessage,
-          audience,
-          scheduledAt: customerMode ? undefined : scheduledAt,
-          allowEmptyDraft: customerMode,
-        }),
+      const next = saveCampaign(data, {
+        ...(initial ? { id: initial.id } : {}),
+        name,
+        body: fullMessage,
+        audience,
+        type,
+        scheduledAt,
+        ideaId,
+        estimate,
+        allowEmptyDraft: true,
+      });
+      await update(next);
+      onSaved(
+        scheduledAt
+          ? `“${name.trim()}” is scheduled for ${displayDate(scheduledAt)} on this device.`
+          : `“${name.trim()}” was saved as a draft.`,
       );
-      onSaved();
     } catch (error) {
       setSaveError(
-        error instanceof Error
-          ? error.message
-          : "Your draft could not be saved. Try again.",
+        error instanceof Error ? error.message : "Your campaign could not be saved.",
       );
+    } finally {
+      setSaving(false);
     }
   };
+
+  const percent = Math.round(((step + 1) / STEPS.length) * 100);
 
   return (
     <View style={styles.root}>
       <View
         style={styles.progress}
-        accessibilityLabel={`Step ${step + 1} of 3: ${STEPS[step]}`}
+        accessibilityLabel={`Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}, ${percent} percent complete`}
       >
-        {STEPS.map((label, index) => (
-          <Pressable
-            key={label}
-            accessibilityRole="button"
-            accessibilityLabel={`${label}${index === step ? ", current step" : ""}`}
-            accessibilityState={{
-              disabled: index > step,
-              selected: index === step,
-            }}
-            disabled={index > step}
-            onPress={() => goToStep(index)}
-            style={styles.progressItem}
-          >
-            <View
-              style={[styles.stepCircle, index <= step && styles.stepActive]}
+        <View style={ui.between}>
+          <Text style={styles.progressLabel}>
+            Step {step + 1} of {STEPS.length}
+          </Text>
+          <Text style={styles.progressLabel}>{percent}% Complete</Text>
+        </View>
+        <ProgressBar value={step + 1} max={STEPS.length} />
+        <View style={styles.stepRow}>
+          {STEPS.map((label, index) => (
+            <Pressable
+              key={label}
+              accessibilityRole="button"
+              accessibilityLabel={`${label}${index === step ? ", current step" : ""}`}
+              accessibilityState={{
+                disabled: index > step && !initial,
+                selected: index === step,
+              }}
+              disabled={index > step && !initial}
+              onPress={() => goToStep(index)}
+              style={styles.stepItem}
             >
-              {index < step ? (
-                <Icon name="check" size={16} color={C.white} />
-              ) : (
-                <Text
-                  style={[
-                    styles.stepNumber,
-                    index === step && styles.stepNumberActive,
-                  ]}
-                >
-                  {index + 1}
-                </Text>
-              )}
-            </View>
-            <Text
-              style={[
-                styles.stepLabel,
-                index === step && styles.stepLabelActive,
-              ]}
-            >
-              {label}
-            </Text>
-          </Pressable>
-        ))}
+              <View
+                style={[
+                  styles.stepDot,
+                  index < step && styles.stepDone,
+                  index === step && styles.stepCurrent,
+                ]}
+              >
+                {index < step ? (
+                  <Icon name="check" size={11} color={C.white} />
+                ) : (
+                  <Text
+                    style={[styles.stepNumber, index === step && styles.stepNumberCurrent]}
+                  >
+                    {index + 1}
+                  </Text>
+                )}
+              </View>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.stepTitle}>{STEPS[step]}</Text>
       </View>
+
+      {!editable && (
+        <View style={styles.infoBox}>
+          <Icon name="info" size={18} color={C.primary} />
+          <Text style={[t.help, ui.grow]}>
+            Sent campaigns cannot be edited. Use “Send Campaign” to start a new one.
+          </Text>
+        </View>
+      )}
 
       {step === 0 && (
         <View style={styles.section}>
-          <View style={styles.heading}>
-            <Text style={ui.h2}>Start a conversation.</Text>
-            <Text style={[ui.body, ui.muted]}>
-              One clear message. One easy next step for your customer.
+          <Text style={t.help}>Basic campaign information</Text>
+          <Input
+            label="Campaign Name"
+            required
+            placeholder="Enter campaign name"
+            value={name}
+            maxLength={80}
+            onChangeText={(value) => {
+              setName(value);
+              setNameError("");
+            }}
+            error={nameError}
+            help="For your team only. Subscribers will not see this name."
+          />
+          <View style={styles.field}>
+            <Text style={t.label}>
+              Campaign Type<Text style={{ color: C.red }}> *</Text>
             </Text>
-          </View>
-
-          {!initial &&
-            !reusing &&
-            !body.trim() &&
-            !writerOpen &&
-            pastCampaigns.length > 0 && (
-              <View style={styles.reuseCard}>
+            {CAMPAIGN_TYPES.map((option) => {
+              const enabled = option === "SMS";
+              return (
                 <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Use a past message"
-                  accessibilityState={{ expanded: pastOpen }}
-                  onPress={() => setPastOpen(!pastOpen)}
-                  style={styles.reuseToggle}
+                  key={option}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${option} message`}
+                  accessibilityState={{ checked: type === option, disabled: !enabled }}
+                  disabled={!enabled}
+                  onPress={() => setType(option)}
+                  style={[
+                    styles.option,
+                    type === option && styles.optionSelected,
+                    !enabled && styles.optionDisabled,
+                  ]}
                 >
-                  <Icon name="rotate-ccw" color={C.primary} size={21} />
+                  <Radio selected={type === option} />
                   <View style={ui.grow}>
-                    <Text style={styles.optionTitle}>Use a past message</Text>
-                    <Text style={ui.help}>
-                      Less typing. A fresh version of your own words.
-                    </Text>
+                    <Text style={styles.optionTitle}>{option} Message</Text>
+                    <Text style={t.small}>{TYPE_DETAILS[option]}</Text>
                   </View>
-                  <Icon
-                    name={pastOpen ? "chevron-up" : "chevron-down"}
-                    size={18}
-                    color={C.primary}
-                  />
+                  {!enabled ? <Badge label="Web" tone="gray" /> : null}
                 </Pressable>
-                {pastOpen && (
-                  <View style={styles.reuseList}>
-                    <Text style={ui.help}>
-                      {customerMode
-                        ? "Recent sent campaigns"
-                        : "Recent sent campaigns · sample history"}
-                    </Text>
-                    {pastCampaigns.map((campaign) => (
-                      <Pressable
-                        key={campaign.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Reuse ${campaign.name}`}
-                        onPress={() => {
-                          const copy = campaignToSeed(campaign);
-                          setBody(editableMessage(copy.body));
-                          setName(copy.name);
-                          setAudience(copy.audience);
-                          setReusing(true);
-                          setPastOpen(false);
-                          setMessageError("");
-                          resetSheetScroll();
-                        }}
-                        style={({ pressed }) => [
-                          styles.reuseItem,
-                          pressed && { backgroundColor: C.lilac },
-                        ]}
-                      >
-                        <View style={ui.grow}>
-                          <Text style={styles.optionTitle} numberOfLines={2}>
-                            {campaign.name}
-                          </Text>
-                          <Text style={ui.help} numberOfLines={2}>
-                            {editableMessage(campaign.body)}
-                          </Text>
-                        </View>
-                        <Icon
-                          name="arrow-up-right"
-                          color={C.primary}
-                          size={18}
-                        />
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
+              );
+            })}
+          </View>
+          <View style={styles.field}>
+            <Text style={t.label}>Sender</Text>
+            <View style={styles.senderRow}>
+              <Icon name="phone" size={17} color={C.muted} />
+              <View style={ui.grow}>
+                <Text style={styles.optionTitle}>Your SAM number</Text>
+                <Text style={t.small}>
+                  Sender numbers are assigned in SAM → My Numbers. Sending
+                  happens when the app is connected to your account.
+                </Text>
               </View>
-            )}
+            </View>
+          </View>
+          <Button title="Next" icon="arrow-right" onPress={continueFromDetails} />
+        </View>
+      )}
+
+      {step === 1 && (
+        <View style={styles.section}>
+          <Text style={t.help}>
+            One clear message and one easy next step for your subscriber.
+          </Text>
+
+          {!initial && !reusing && !body.trim() && !writerOpen && pastCampaigns.length > 0 && (
+            <View style={styles.reuseCard}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Use a past message"
+                accessibilityState={{ expanded: pastOpen }}
+                onPress={() => setPastOpen(!pastOpen)}
+                style={styles.reuseToggle}
+              >
+                <Icon name="rotate-ccw" color={C.primary} size={20} />
+                <View style={ui.grow}>
+                  <Text style={styles.optionTitle}>Use a past message</Text>
+                  <Text style={t.help}>A fresh version of your own words.</Text>
+                </View>
+                <Icon
+                  name={pastOpen ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={C.primary}
+                />
+              </Pressable>
+              {pastOpen && (
+                <View style={styles.reuseList}>
+                  {pastCampaigns.map((campaign) => (
+                    <Pressable
+                      key={campaign.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Reuse ${campaign.name}`}
+                      onPress={() => {
+                        const copy = campaignToSeed(campaign);
+                        setBody(editableMessage(copy.body));
+                        if (!name.trim()) setName(copy.name);
+                        if (audiences.includes(copy.audience)) setAudience(copy.audience);
+                        setReusing(true);
+                        setPastOpen(false);
+                        setMessageError("");
+                        resetSheetScroll();
+                      }}
+                      style={({ pressed }) => [
+                        styles.reuseItem,
+                        pressed && { backgroundColor: C.primarySoft },
+                      ]}
+                    >
+                      <View style={ui.grow}>
+                        <Text style={styles.optionTitle} numberOfLines={2}>
+                          {campaign.name}
+                        </Text>
+                        <Text style={t.help} numberOfLines={2}>
+                          {editableMessage(campaign.body)}
+                        </Text>
+                      </View>
+                      <Icon name="arrow-up-right" color={C.primary} size={18} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
 
           {reusing && (
-            <View style={styles.reuseNote}>
+            <View style={styles.infoBox}>
               <Icon name="rotate-ccw" color={C.primary} size={18} />
               <View style={ui.grow}>
                 <Text style={styles.optionTitle}>Make it fresh</Text>
-                <Text style={ui.help}>
-                  Check dates, prices, and offer details. You’ll review the{" "}
-                  {customerMode
-                    ? "audience next."
-                    : "audience and timing next."}
+                <Text style={t.help}>
+                  Check dates, prices, and offer details before continuing.
                 </Text>
               </View>
             </View>
@@ -422,19 +507,19 @@ export function CampaignComposer({
           <View style={styles.writer}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Start with an example"
+              accessibilityLabel="SAM AI Assist: start with an example"
               accessibilityState={{ expanded: writerOpen }}
               onPress={() => setWriterOpen(!writerOpen)}
               style={styles.writerToggle}
             >
               <View style={styles.writerMark}>
-                <Icon name="edit-3" size={22} color={C.primary} />
+                <Icon name="zap" size={20} color={C.primary} />
               </View>
               <View style={ui.grow}>
-                <Text style={styles.optionTitle}>Start with an example</Text>
-                <Text style={ui.help}>
-                  Offers, updates, and friendly follow-ups
+                <Text style={styles.optionTitle}>
+                  SAM<Text style={{ color: C.primary }}>AI</Text> Assist
                 </Text>
+                <Text style={t.help}>Offers, updates, and friendly follow-ups</Text>
               </View>
               <Icon
                 name={writerOpen ? "chevron-up" : "chevron-down"}
@@ -444,42 +529,37 @@ export function CampaignComposer({
             </Pressable>
             {writerOpen && (
               <View style={styles.writerContent}>
-                <Text style={ui.body}>
-                  Pick what you want to do. We’ll help with the details.
-                </Text>
-                <Text style={styles.fieldLabel}>What do you want to do?</Text>
+                <Text style={t.label}>What do you want to do?</Text>
                 <View style={styles.choiceList}>
                   {GOALS.map((item) => (
                     <Pressable
                       key={item.value}
                       accessibilityRole="radio"
-                      accessibilityState={{
-                        checked: writerGoal === item.value,
-                      }}
+                      accessibilityLabel={item.label}
+                      accessibilityState={{ checked: writerGoal === item.value }}
                       onPress={() => setWriterGoal(item.value)}
                       style={[
-                        styles.goalOption,
+                        styles.option,
                         writerGoal === item.value && styles.optionSelected,
                       ]}
                     >
+                      <Radio selected={writerGoal === item.value} />
                       <View style={ui.grow}>
                         <Text style={styles.optionTitle}>{item.label}</Text>
-                        <Text style={ui.help}>{item.detail}</Text>
+                        <Text style={t.small}>{item.detail}</Text>
                       </View>
-                      <Radio selected={writerGoal === item.value} />
                     </Pressable>
                   ))}
                 </View>
                 {writerGoal === "promotion" ? (
                   <OfferBuilder
-                    customerMode={customerMode}
+                    customerMode
                     draft={offerDraft}
                     onChange={setOfferDraft}
                     hasMessage={Boolean(body.trim())}
                     onUseMessage={(message) => {
                       setBody(editableMessage(message));
                       setMessageError("");
-                      completeGuide("writer");
                       setWriterOpen(false);
                       resetSheetScroll();
                     }}
@@ -488,7 +568,7 @@ export function CampaignComposer({
                   <>
                     <Input
                       label="The details"
-                      placeholder="Add your offer, event, or news. Include the action you want people to take."
+                      placeholder="Add your event, news, or reason to visit. Include the action you want people to take."
                       value={details}
                       onChangeText={(value) => {
                         setDetails(value);
@@ -497,48 +577,36 @@ export function CampaignComposer({
                       multiline
                       maxLength={1200}
                       style={styles.detailsInput}
+                      error={detailsError}
                     />
-                    {detailsError ? (
-                      <Text accessibilityRole="alert" style={ui.error}>
-                        {detailsError}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.fieldLabel}>Make it sound</Text>
+                    <Text style={t.label}>Make it sound</Text>
                     <Chips
                       options={TONES.map((item) => item.label)}
-                      value={
-                        TONES.find((item) => item.value === tone)?.label ??
-                        "Friendly"
-                      }
+                      value={TONES.find((item) => item.value === tone)?.label ?? "Friendly"}
                       onChange={(label) =>
-                        setTone(
-                          TONES.find((item) => item.label === label)?.value ??
-                            "friendly",
-                        )
+                        setTone(TONES.find((item) => item.label === label)?.value ?? "friendly")
                       }
                     />
                     <Button
-                      title={
-                        body.trim()
-                          ? "Replace message with suggestion"
-                          : "Create a starting point"
-                      }
+                      title={body.trim() ? "Replace message with suggestion" : "Create a starting point"}
                       onPress={createStartingPoint}
                       icon="edit-3"
-                      variant="secondary"
+                      variant="outlinePrimary"
                     />
-                    <Text style={ui.help}>
-                      Uses your details to fill a writing template. You can edit
-                      every word before saving.
+                    <Text style={t.small}>
+                      Uses your details to fill a writing template on this device.
+                      You can edit every word before saving.
                     </Text>
                   </>
                 )}
               </View>
             )}
           </View>
+
           <Input
-            label="Your message"
-            placeholder="What would you like your customers to know?"
+            label="Message"
+            required
+            placeholder="What would you like your subscribers to know?"
             value={body}
             onChangeText={(value) => {
               setBody(value);
@@ -548,116 +616,24 @@ export function CampaignComposer({
             maxLength={1600}
             accessibilityLabel="Campaign message"
             style={styles.messageInput}
+            error={messageError}
           />
-          {messageError ? (
-            <Text accessibilityRole="alert" style={ui.error}>
-              {messageError}
-            </Text>
-          ) : null}
           <View style={styles.footerNote}>
-            <Icon name="shield" size={17} color={C.green} />
+            <Icon name="shield" size={16} color={C.green} />
             <Text style={styles.footerCopy}>
-              Included automatically: Reply STOP to opt out.
+              Added automatically: “Reply STOP to opt out.”
             </Text>
           </View>
           <View style={ui.between}>
-            <Text style={ui.help}>{sms.characters} encoded characters</Text>
-            <Text style={ui.help}>
-              {sms.segments} SMS segment{sms.segments === 1 ? "" : "s"} ·{" "}
-              {sms.encoding}
+            <Text style={t.small}>{sms.characters} characters · {sms.encoding}</Text>
+            <Text style={t.small}>
+              {sms.segments} SMS segment{sms.segments === 1 ? "" : "s"}
             </Text>
           </View>
-
-          <Button
-            title="Next: choose audience"
-            onPress={continueToAudience}
-            icon="arrow-right"
-          />
-        </View>
-      )}
-
-      {step === 1 && (
-        <View style={styles.section}>
-          <View style={styles.heading}>
-            <Text style={ui.h2}>Make it feel personal.</Text>
-            <Text style={[ui.body, ui.muted]}>
-              Choose the people this message is most useful for.
-            </Text>
-          </View>
-          <View style={styles.choiceList}>
-            {AUDIENCES.map((item) => {
-              const count = getAudienceContacts(
-                data.contacts,
-                item.name,
-              ).length;
-              const total = data.contacts.filter(
-                (contact) =>
-                  item.name === "All subscribers" ||
-                  contact.group === item.name,
-              ).length;
-              return (
-                <Pressable
-                  key={item.name}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`${item.name}, ${count} subscribed contacts, ${total - count} opted out and excluded`}
-                  accessibilityState={{ checked: audience === item.name }}
-                  onPress={() => {
-                    setAudience(item.name);
-                    setAudienceError("");
-                  }}
-                  style={[
-                    styles.audienceOption,
-                    audience === item.name && styles.optionSelected,
-                  ]}
-                >
-                  <View style={styles.audienceTop}>
-                    <Radio selected={audience === item.name} />
-                    <Text style={[styles.optionTitle, ui.grow]}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.audienceCount}>{count}</Text>
-                  </View>
-                  <Text style={[ui.body, ui.muted]}>{item.description}</Text>
-                  <Text style={ui.help}>
-                    {count} subscribed · {total - count} opted out, excluded
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {audienceError ? (
-            <Text accessibilityRole="alert" style={ui.error}>
-              {audienceError}
-            </Text>
-          ) : null}
-          <View style={styles.infoBox}>
-            <Icon name="shield" size={21} color={C.green} />
-            <View style={ui.grow}>
-              <Text style={styles.optionTitle}>Only subscribed contacts</Text>
-              <Text style={[ui.body, ui.muted]}>
-                Opted-out contacts are automatically excluded from every
-                audience.
-              </Text>
-            </View>
-          </View>
-          {customerMode && !recipients && (
-            <Text style={ui.help}>
-              No subscribers yet. You can save your message as a draft and add
-              subscribers later.
-            </Text>
-          )}
           <View style={styles.actionRow}>
-            <Button
-              title="Back"
-              variant="secondary"
-              onPress={() => goToStep(0)}
-            />
+            <Button title="Previous" variant="outline" onPress={() => goToStep(0)} />
             <View style={ui.grow}>
-              <Button
-                title="Next: review"
-                icon="arrow-right"
-                onPress={continueToReview}
-              />
+              <Button title="Next" icon="arrow-right" onPress={continueFromMessage} />
             </View>
           </View>
         </View>
@@ -665,146 +641,223 @@ export function CampaignComposer({
 
       {step === 2 && (
         <View style={styles.section}>
-          <View style={styles.heading}>
-            <Text style={ui.h2}>A final look.</Text>
-            <Text style={[ui.body, ui.muted]}>
-              See your message the way your customers will.
-            </Text>
+          <Text style={t.help}>
+            Choose who receives this campaign. Opted-out subscribers are always excluded.
+          </Text>
+          <View style={styles.choiceList}>
+            {audiences.map((item) => {
+              const count = getAudienceContacts(data.contacts, item, groups).length;
+              const total = data.contacts.filter(
+                (contact) => item === ALL_SUBSCRIBERS || contact.group === item,
+              ).length;
+              return (
+                <Pressable
+                  key={item}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${item}, ${count} subscribed, ${total - count} opted out`}
+                  accessibilityState={{ checked: audience === item }}
+                  onPress={() => setAudience(item)}
+                  style={[styles.option, audience === item && styles.optionSelected]}
+                >
+                  <Radio selected={audience === item} />
+                  <View style={ui.grow}>
+                    <Text style={styles.optionTitle}>{item}</Text>
+                    <Text style={t.small}>
+                      {count} subscribed
+                      {total - count > 0 ? ` · ${total - count} opted out` : ""}
+                    </Text>
+                  </View>
+                  <Text style={styles.audienceCount}>{count}</Text>
+                </Pressable>
+              );
+            })}
           </View>
+          {recipients === 0 && (
+            <View style={styles.infoBox}>
+              <Icon name="users" size={18} color={C.primary} />
+              <Text style={[t.help, ui.grow]}>
+                No subscribers in this audience yet. You can still save the
+                campaign and add subscribers later.
+              </Text>
+            </View>
+          )}
+          <View style={styles.actionRow}>
+            <Button title="Previous" variant="outline" onPress={() => goToStep(1)} />
+            <View style={ui.grow}>
+              <Button title="Next" icon="arrow-right" onPress={() => goToStep(3)} />
+            </View>
+          </View>
+        </View>
+      )}
 
+      {step === 3 && (
+        <View style={styles.section}>
+          <Text style={t.help}>
+            Save a draft or choose a time. Schedules are saved on this device and
+            run through SAM once the app is connected to your account.
+          </Text>
+          <View style={styles.choiceList}>
+            {initial?.scheduledAt && (
+              <TimingOption
+                selected={timing === "keep"}
+                title="Keep current schedule"
+                detail={displayDate(initial.scheduledAt)}
+                onPress={() => {
+                  setTiming("keep");
+                  setTimingError("");
+                }}
+              />
+            )}
+            <TimingOption
+              selected={timing === "draft"}
+              title="Save as draft"
+              detail="Come back and finish it when you are ready"
+              onPress={() => {
+                setTiming("draft");
+                setTimingError("");
+              }}
+            />
+            <TimingOption
+              selected={timing === "tomorrow"}
+              title="Tomorrow at 10:00 AM"
+              detail="A fresh start to the next day"
+              onPress={() => {
+                setTiming("tomorrow");
+                setTimingError("");
+              }}
+            />
+            <TimingOption
+              selected={timing === "custom"}
+              title="Choose a date and time"
+              detail="Pick the exact moment"
+              onPress={() => {
+                setTiming("custom");
+                setTimingError("");
+              }}
+            />
+          </View>
+          {timing === "custom" && (
+            <View style={styles.customTiming}>
+              <View style={styles.customRow}>
+                <View style={ui.grow}>
+                  <Input
+                    label="Date"
+                    placeholder="MM/DD/YYYY"
+                    value={customDate}
+                    onChangeText={(value) => {
+                      setCustomDate(value);
+                      setTimingError("");
+                    }}
+                    inputMode="numeric"
+                    maxLength={10}
+                  />
+                </View>
+                <View style={styles.timeField}>
+                  <Input
+                    label="Time"
+                    placeholder="10:00"
+                    value={customTime}
+                    onChangeText={(value) => {
+                      setCustomTime(value);
+                      setTimingError("");
+                    }}
+                    inputMode="numeric"
+                    maxLength={5}
+                  />
+                </View>
+              </View>
+              <Chips
+                options={["AM", "PM"]}
+                value={meridiem}
+                onChange={(value) => setMeridiem(value === "PM" ? "PM" : "AM")}
+              />
+              <Text style={t.small}>
+                Uses your device time zone (
+                {Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, " ")}).
+              </Text>
+            </View>
+          )}
+          {timingError ? (
+            <Text accessibilityRole="alert" style={ui.error}>
+              {timingError}
+            </Text>
+          ) : null}
+          <View style={styles.actionRow}>
+            <Button title="Previous" variant="outline" onPress={() => goToStep(2)} />
+            <View style={ui.grow}>
+              <Button title="Next" icon="arrow-right" onPress={continueFromSchedule} />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {step === 4 && (
+        <View style={styles.section}>
+          <Text style={t.help}>See your message the way your subscribers will.</Text>
           <View style={styles.phonePreview}>
             <View style={styles.phoneTop}>
               <View style={styles.senderAvatar}>
-                <Icon name="briefcase" size={22} color={C.primary} />
+                <Icon name="briefcase" size={20} color={C.primary} />
               </View>
-              <Text style={styles.senderName}>
-                {customerMode ? "Your business" : "Your business · preview"}
-              </Text>
-              <Text style={ui.help}>Text message</Text>
+              <Text style={styles.senderName}>{businessName}</Text>
+              <Text style={t.small}>{type} · Text Message</Text>
             </View>
             <View style={styles.messageBubble}>
               <Text style={styles.previewText}>{fullMessage}</Text>
             </View>
-            <Text style={styles.previewCaption}>
-              Message appearance may vary by device.
-            </Text>
           </View>
 
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{recipients}</Text>
-              <Text style={ui.help}>recipients</Text>
+              <Text style={t.small}>recipients</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{sms.segments}</Text>
-              <Text style={ui.help}>SMS / person</Text>
+              <Text style={t.small}>SMS / person</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{sms.segments * recipients}</Text>
-              <Text style={ui.help}>est. segments</Text>
+              <Text style={t.small}>est. messages</Text>
             </View>
           </View>
-          <Text style={ui.help}>
-            Includes the opt-out line · {sms.encoding} · {sms.characters}{" "}
-            encoded characters
-          </Text>
 
-          <Input
-            label="Campaign name"
-            placeholder="A name for your campaign"
-            value={name}
-            maxLength={80}
-            onChangeText={(value) => {
-              setName(value);
-              setNameError("");
-              setSaveError("");
-            }}
-          />
-          {nameError ? (
-            <Text accessibilityRole="alert" style={ui.error}>
-              {nameError}
-            </Text>
+          {projected ? (
+            <View style={styles.projection}>
+              <View style={ui.between}>
+                <Text style={t.h3}>Projected impact</Text>
+                <Badge label="Estimate" tone="blue" />
+              </View>
+              <View style={styles.projectionRow}>
+                <ProjectionStat label="Read it" value={String(projected.reached)} />
+                <ProjectionStat label="Redeem" value={String(projected.redemptions)} />
+                <ProjectionStat label="Revenue" value={formatMoney(projected.revenue)} />
+                <ProjectionStat label="Cost" value={formatMoney(projected.messageCost)} />
+              </View>
+              <Text style={t.small}>
+                {recipients === 0
+                  ? "Add subscribers to this audience to see a projection."
+                  : "From your inputs and a 98% SMS open rate (textmunication.com). Log real results after sending."}
+              </Text>
+            </View>
           ) : null}
-          <Text style={ui.help}>
-            For your team only. Customers will not see this name.
-          </Text>
-
-          {!customerMode && (
-            <>
-              <View style={styles.heading}>
-                <Text style={styles.fieldLabel}>When should this happen?</Text>
-                <Text style={ui.help}>Preview timing · {timeZone}</Text>
-              </View>
-              <View style={styles.choiceList}>
-                {initial?.scheduledAt && (
-                  <TimingOption
-                    selected={timing === "keep"}
-                    title="Keep current schedule"
-                    detail={displayDate(initial.scheduledAt)}
-                    onPress={() => chooseTiming("keep")}
-                  />
-                )}
-                <TimingOption
-                  selected={timing === "draft"}
-                  title="Save draft"
-                  detail="Come back and finish it when you are ready"
-                  onPress={() => chooseTiming("draft")}
-                />
-                <TimingOption
-                  selected={timing === "tomorrow"}
-                  title="Tomorrow at 10 AM"
-                  detail="A fresh start to the next day"
-                  onPress={() => chooseTiming("tomorrow")}
-                />
-                <TimingOption
-                  selected={timing === "later"}
-                  title="In 2 hours"
-                  detail="Give yourself a little time to prepare"
-                  onPress={() => chooseTiming("later")}
-                />
-              </View>
-              {timingError ? (
-                <Text accessibilityRole="alert" style={ui.error}>
-                  {timingError}
-                </Text>
-              ) : null}
-            </>
-          )}
 
           <Card style={styles.summary}>
-            <View style={ui.between}>
-              <Text style={styles.fieldLabel}>Your campaign</Text>
-              <Badge
-                label={customerMode ? "Draft" : "Preview only"}
-                tone="purple"
-              />
-            </View>
-            <View style={styles.summaryLine}>
-              <Icon name="users" size={19} color={C.muted} />
-              <Text style={ui.body}>
-                {audience} · {recipients} subscribed
-              </Text>
-            </View>
-            {excluded > 0 && (
-              <Text style={ui.help}>
-                {excluded} opted-out contact{excluded === 1 ? "" : "s"} excluded
-              </Text>
-            )}
-            <View style={styles.summaryLine}>
-              <Icon name="clock" size={19} color={C.muted} />
-              <Text style={[ui.body, ui.grow]}>
-                {customerMode
-                  ? "Saved for this session"
-                  : scheduledAt
-                    ? `${displayDate(scheduledAt)} · ${timeZone}`
-                    : "Saved as a draft on this device"}
-              </Text>
-            </View>
-            <Text style={[ui.body, ui.muted]}>
-              {customerMode
-                ? "This saves your draft for this session. No messages will be sent."
-                : "Nothing will be sent. This saves a local preview for you to explore."}
-            </Text>
+            <SummaryLine icon="tag" text={name.trim() || "Untitled campaign"} />
+            <SummaryLine
+              icon="users"
+              text={`${audience} · ${recipients} subscribed${
+                excluded > 0 ? ` · ${excluded} opted out excluded` : ""
+              }`}
+            />
+            <SummaryLine
+              icon="clock"
+              text={scheduledAt ? `Scheduled · ${displayDate(scheduledAt)}` : "Saved as a draft"}
+            />
+            <SummaryLine
+              icon="smartphone"
+              text="Saved on this device. Sending runs through your SAM account once the app is connected."
+            />
           </Card>
           {saveError ? (
             <Text accessibilityRole="alert" style={ui.error}>
@@ -812,34 +865,52 @@ export function CampaignComposer({
             </Text>
           ) : null}
           <View style={styles.actionRow}>
-            <Button
-              title="Back"
-              variant="secondary"
-              onPress={() => goToStep(1)}
-            />
+            <Button title="Previous" variant="outline" onPress={() => goToStep(3)} />
             <View style={ui.grow}>
               <Button
-                title={
-                  !customerMode && scheduledAt
-                    ? "Save preview schedule"
-                    : "Save draft"
-                }
+                title={saving ? "Saving…" : scheduledAt ? "Schedule Campaign" : "Save Draft"}
                 icon="check"
-                disabled={!ready}
+                disabled={!ready || saving || !editable}
                 onPress={save}
               />
             </View>
           </View>
+          {onMarkSentRequest && editable ? (
+            <Button
+              title="Mark as sent in SAM"
+              icon="check-circle"
+              variant="outline"
+              onPress={onMarkSentRequest}
+            />
+          ) : null}
+          {onDeleteRequest && editable ? (
+            <Button
+              title="Delete campaign"
+              icon="trash-2"
+              variant="ghost"
+              onPress={onDeleteRequest}
+            />
+          ) : null}
         </View>
       )}
     </View>
   );
 }
 
-function Radio({ selected }: { selected: boolean }) {
+function ProjectionStat({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[styles.radio, selected && styles.radioSelected]}>
-      {selected && <View style={styles.radioDot} />}
+    <View style={styles.projectionStat}>
+      <Text style={styles.projectionValue}>{value}</Text>
+      <Text style={t.small}>{label}</Text>
+    </View>
+  );
+}
+
+function SummaryLine({ icon, text }: { icon: React.ComponentProps<typeof Icon>["name"]; text: string }) {
+  return (
+    <View style={styles.summaryLine}>
+      <Icon name={icon} size={18} color={C.muted} />
+      <Text style={[t.body, ui.grow]}>{text}</Text>
     </View>
   );
 }
@@ -858,232 +929,177 @@ function TimingOption({
   return (
     <Pressable
       accessibilityRole="radio"
+      accessibilityLabel={title}
       accessibilityState={{ checked: selected }}
       onPress={onPress}
-      style={[styles.timingOption, selected && styles.optionSelected]}
+      style={[styles.option, selected && styles.optionSelected]}
     >
       <Radio selected={selected} />
       <View style={ui.grow}>
         <Text style={styles.optionTitle}>{title}</Text>
-        <Text style={ui.help}>{detail}</Text>
+        <Text style={t.small}>{detail}</Text>
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  reuseCard: {
+  root: { gap: 20 },
+  progress: { gap: 10 },
+  progressLabel: { color: C.text, fontFamily: F.medium, fontSize: 13, lineHeight: 18 },
+  stepRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 2 },
+  stepItem: { minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center" },
+  stepDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 16,
-    backgroundColor: C.white,
-    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  reuseToggle: {
+  stepDone: { backgroundColor: C.primary, borderColor: C.primary },
+  stepCurrent: { borderColor: C.primary, backgroundColor: C.primarySoft },
+  stepNumber: { fontFamily: F.semibold, fontSize: 12, color: C.muted },
+  stepNumberCurrent: { color: C.primary },
+  stepTitle: { color: C.ink, fontFamily: F.bold, fontSize: 18, lineHeight: 24 },
+  section: { gap: 16 },
+  field: { gap: 8 },
+  option: {
+    backgroundColor: C.white,
+    minHeight: 60,
+    padding: 13,
+    borderRadius: R.lg,
+    borderColor: C.border,
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 16,
-    minHeight: 72,
   },
-  reuseList: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+  optionSelected: { backgroundColor: C.primarySoft, borderColor: C.primary },
+  optionDisabled: { opacity: 0.55 },
+  optionTitle: { fontFamily: F.semibold, fontSize: 15, lineHeight: 21, color: C.ink },
+  senderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 13,
+    borderRadius: R.lg,
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  reuseCard: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: R.lg,
+    backgroundColor: C.white,
+    overflow: "hidden",
+  },
+  reuseToggle: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, minHeight: 64 },
+  reuseList: { paddingHorizontal: 14, paddingBottom: 8, gap: 4 },
   reuseItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: C.border,
-    paddingVertical: 15,
+    paddingVertical: 12,
   },
-  reuseNote: {
-    backgroundColor: C.lilac,
-    borderRadius: 14,
-    padding: 15,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 11,
-  },
-  root: { gap: 24 },
-  progress: {
-    flexDirection: "row",
-    backgroundColor: C.bg,
-    borderRadius: 18,
-    padding: 8,
-    gap: 4,
-  },
-  progressItem: {
-    flex: 1,
-    minHeight: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  stepCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepActive: { backgroundColor: C.primary, borderColor: C.primary },
-  stepNumber: { fontSize: 14, color: C.muted, fontWeight: "700" },
-  stepNumberActive: { color: C.white },
-  stepLabel: { color: C.muted, fontSize: 14, fontWeight: "600" },
-  stepLabelActive: { color: C.primary },
-  section: { gap: 16 },
-  heading: { gap: 6 },
-  messageInput: {
-    minHeight: 174,
-    textAlignVertical: "top",
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  detailsInput: { minHeight: 106, textAlignVertical: "top" },
-  footerNote: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "#F0F8F4",
-  },
-  footerCopy: { color: C.ink, flex: 1, fontSize: 14, lineHeight: 20 },
-  writer: {
-    backgroundColor: C.lilac,
-    borderRadius: 20,
-    borderColor: C.border,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  writerToggle: {
-    minHeight: 84,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-  },
-  writerMark: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: C.white,
-  },
-  writerContent: { padding: 16, paddingTop: 0, gap: 16 },
-  fieldLabel: { fontSize: 15, lineHeight: 21, color: C.ink, fontWeight: "700" },
-  choiceList: { gap: 10 },
-  goalOption: {
-    backgroundColor: C.white,
-    minHeight: 76,
-    padding: 14,
-    borderRadius: 14,
-    borderColor: C.border,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  optionSelected: { backgroundColor: C.lilac, borderColor: C.primary },
-  optionTitle: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: "700",
-    color: C.ink,
-  },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: C.border,
-    backgroundColor: C.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioSelected: { borderColor: C.primary },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: C.primary,
-  },
-  audienceOption: {
-    backgroundColor: C.white,
-    gap: 8,
-    borderColor: C.border,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 18,
-  },
-  audienceTop: { flexDirection: "row", alignItems: "center", gap: 10 },
-  audienceCount: { color: C.primary, fontSize: 24, fontWeight: "700" },
   infoBox: {
     flexDirection: "row",
     alignItems: "flex-start",
-    padding: 16,
-    borderRadius: 16,
-    gap: 12,
-    backgroundColor: "#F0F8F4",
+    gap: 10,
+    padding: 13,
+    borderRadius: R.lg,
+    backgroundColor: C.primarySoft,
   },
-  actionRow: {
+  writer: {
+    backgroundColor: C.white,
+    borderRadius: R.lg,
+    borderColor: C.primaryBorder,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  writerToggle: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  writerMark: {
+    width: 40,
+    height: 40,
+    borderRadius: R.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.primarySoft,
+  },
+  writerContent: { padding: 14, paddingTop: 0, gap: 14 },
+  choiceList: { gap: 10 },
+  audienceCount: { color: C.primary, fontFamily: F.bold, fontSize: 20, lineHeight: 26 },
+  messageInput: { minHeight: 160, fontSize: 16, lineHeight: 24 },
+  detailsInput: { minHeight: 100 },
+  footerNote: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingTop: 6,
+    gap: 8,
+    padding: 11,
+    borderRadius: R.md,
+    backgroundColor: C.greenSoft,
   },
+  footerCopy: { color: "#166534", fontFamily: F.medium, flex: 1, fontSize: 13, lineHeight: 18 },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 4 },
+  customTiming: { gap: 10 },
+  customRow: { flexDirection: "row", gap: 10 },
+  timeField: { width: 110 },
   phonePreview: {
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 28,
-    backgroundColor: "#F5F6FA",
-    padding: 20,
-    gap: 20,
+    borderRadius: R.xl,
+    backgroundColor: C.bg,
+    padding: 18,
+    gap: 16,
   },
-  phoneTop: { alignItems: "center", gap: 5 },
+  phoneTop: { alignItems: "center", gap: 4 },
   senderAvatar: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 22,
+    borderRadius: 21,
     backgroundColor: C.white,
-    marginBottom: 3,
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 2,
   },
-  senderName: { fontSize: 14, fontWeight: "700", color: C.ink },
+  senderName: { fontFamily: F.semibold, fontSize: 14, lineHeight: 20, color: C.ink },
   messageBubble: {
     backgroundColor: C.white,
-    borderRadius: 20,
+    borderRadius: 18,
     borderBottomLeftRadius: 5,
-    padding: 18,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#E8EAF0",
+    borderColor: C.border,
     alignSelf: "stretch",
   },
-  previewText: { fontSize: 16, lineHeight: 25, color: C.ink },
-  previewCaption: {
-    textAlign: "center",
-    color: C.muted,
-    fontSize: 14,
-    lineHeight: 20,
+  previewText: { fontFamily: F.regular, fontSize: 16, lineHeight: 24, color: C.ink },
+  statsRow: { flexDirection: "row", paddingVertical: 4, gap: 8 },
+  stat: { flex: 1, alignItems: "center", gap: 2 },
+  statValue: { fontFamily: F.bold, fontSize: 24, lineHeight: 30, color: C.ink },
+  summary: { gap: 12 },
+  summaryLine: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  projection: {
+    gap: 10,
+    padding: 14,
+    borderRadius: R.lg,
+    backgroundColor: C.primarySoft,
   },
-  statsRow: { flexDirection: "row", paddingVertical: 6, gap: 8 },
-  stat: { flex: 1, alignItems: "center", gap: 4 },
-  statValue: { fontSize: 26, lineHeight: 32, color: C.ink, fontWeight: "700" },
-  timingOption: {
-    minHeight: 78,
-    padding: 15,
+  projectionRow: { flexDirection: "row", gap: 8 },
+  projectionStat: {
+    flex: 1,
     backgroundColor: C.white,
-    borderColor: C.border,
-    borderWidth: 1,
-    borderRadius: 16,
-    flexDirection: "row",
+    borderRadius: R.md,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     alignItems: "center",
-    gap: 12,
+    gap: 2,
   },
-  summary: { gap: 13 },
-  summaryLine: { flexDirection: "row", alignItems: "center", gap: 10 },
+  projectionValue: { color: C.ink, fontFamily: F.bold, fontSize: 17, lineHeight: 22 },
 });

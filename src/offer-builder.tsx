@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { buildOfferMessage, getOfferExample, type OfferDraft } from "./offers";
 import { withOptOut } from "./sam";
-import { Badge, Button, C, Chips, Icon, Input, ui } from "./ui";
+import { Badge, Button, C, Chips, F, Icon, Input, ui } from "./ui";
 
 type OfferBuilderProps = {
   draft: OfferDraft;
@@ -430,10 +430,10 @@ const s = StyleSheet.create({
     color: C.ink,
     fontSize: 17,
     lineHeight: 24,
-    fontWeight: "700",
+    fontFamily: F.bold,
     marginBottom: 4,
   },
-  label: { color: C.ink, fontSize: 14, lineHeight: 21, fontWeight: "600" },
+  label: { color: C.ink, fontSize: 14, lineHeight: 21, fontFamily: F.semibold },
   fieldGroup: { gap: 9 },
   exampleOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   exampleChip: {
@@ -448,10 +448,10 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   exampleChipText: {
-    color: "#086CA8",
+    color: C.primaryDark,
     fontSize: 14,
     lineHeight: 21,
-    fontWeight: "600",
+    fontFamily: F.semibold,
   },
   notice: { color: C.green, fontSize: 14, lineHeight: 21 },
   termsInput: { minHeight: 88 },
@@ -480,7 +480,7 @@ const s = StyleSheet.create({
     color: C.primary,
     fontSize: 14,
     lineHeight: 21,
-    fontWeight: "600",
+    fontFamily: F.semibold,
     flex: 1,
   },
   confirmation: {
@@ -521,7 +521,7 @@ const s = StyleSheet.create({
     color: C.ink,
     fontSize: 24,
     lineHeight: 32,
-    fontWeight: "700",
+    fontFamily: F.bold,
     letterSpacing: 1.4,
   },
   demoStatus: {

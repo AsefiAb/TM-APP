@@ -4,9 +4,7 @@ import { createSeedData, getSmsInfo, isAppData } from "./domain";
 import {
   campaignToSeed,
   campaignTitle,
-  defaultGuide,
   goals,
-  isGuideProgress,
   saveCampaign,
   suggestMessage,
   withOptOut,
@@ -311,26 +309,3 @@ test("sent campaigns and missing campaign IDs cannot be edited", () => {
   assert.equal(data.campaigns.length, 4);
 });
 
-test("guide progress supports persisted dismissal and rejects malformed saved state", () => {
-  assert.equal(isGuideProgress(defaultGuide), true);
-  const persisted: unknown = JSON.parse(
-    JSON.stringify({
-      hidden: true,
-      completed: ["writer", "campaign", "reply"],
-    }),
-  );
-  assert.equal(isGuideProgress(persisted), true);
-  for (const invalid of [
-    null,
-    [],
-    {},
-    { hidden: "yes", completed: [] },
-    { hidden: false, completed: [1] },
-    { hidden: false, completed: [""] },
-    { hidden: false, completed: ["writer", "writer"] },
-    { hidden: false, completed: ["unknown"] },
-  ]) {
-    assert.equal(isGuideProgress(invalid), false);
-  }
-  assert.deepEqual(defaultGuide, { hidden: false, completed: [] });
-});

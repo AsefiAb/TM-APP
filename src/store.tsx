@@ -3,64 +3,50 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
-import { AppData, createSeedData, isAppData } from "./domain";
-import { defaultGuide, GuideProgress, isGuideProgress } from "./sam";
-import {
-  isReplyDrafts,
-  ReplyDrafts,
-  setConversationDraft,
-} from "./reply-drafts";
+import { AppData, DEFAULT_GROUPS, isAppData } from "./domain";
 
-const KEY = "@textmunication/demo/v1";
-const GUIDE_KEY = "@textmunication/sam-guide/v1";
-const REPLY_DRAFTS_KEY = "@textmunication/reply-drafts/v1";
+/** Device storage for the owner's workspace: groups, subscribers, campaigns. */
+export const WORKSPACE_KEY = "@textmunication/workspace/v1";
+
 type Store = {
   data: AppData;
+  /** False until saved data has been read; writes are ignored before then. */
   ready: boolean;
   storageError: string;
   update: (next: AppData) => Promise<boolean>;
-  reset: () => void;
-  guide: GuideProgress;
-  completeGuide: (step: string) => void;
-  showGuide: (show: boolean) => void;
-  replyDrafts: ReplyDrafts;
-  setReplyDraft: (
-    conversationId: string,
-    text: string,
-    expectedCurrentText?: string,
-  ) => void;
+  /** Removes everything saved on this device and starts an empty workspace. */
+  reset: () => Promise<boolean>;
 };
+
 const Context = createContext<Store | null>(null);
 
-function emptyWorkspace(): AppData {
-  return { version: 1, contacts: [], conversations: [], campaigns: [] };
+export function emptyWorkspace(): AppData {
+  return {
+    version: 1,
+    groups: [...DEFAULT_GROUPS],
+    contacts: [],
+    conversations: [],
+    campaigns: [],
+  };
 }
 
-export function DemoProvider({
+export function WorkspaceProvider({
   children,
-  fresh = false,
-}: React.PropsWithChildren<{ fresh?: boolean }>) {
-  const [data, setData] = useState(fresh ? emptyWorkspace : createSeedData);
+  storageKey = WORKSPACE_KEY,
+}: React.PropsWithChildren<{ storageKey?: string }>) {
+  const [data, setData] = useState<AppData>(emptyWorkspace);
   const dataRef = useRef(data);
-  const [ready, setReady] = useState(fresh);
+  const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState("");
-  const [guide, setGuide] = useState<GuideProgress>({
-    ...defaultGuide,
-    completed: [],
-  });
-  const guideRef = useRef(guide);
-  const [replyDrafts, setReplyDrafts] = useState<ReplyDrafts>({});
-  const replyDraftsRef = useRef(replyDrafts);
   const writes = useRef(Promise.resolve());
+
   useEffect(() => {
-    // First-time walkthroughs are session-only and never read or overwrite
-    // the separate, previously saved demonstration workspace.
-    if (fresh) return;
     let active = true;
-    const loadData = AsyncStorage.getItem(KEY)
+    AsyncStorage.getItem(storageKey)
       .then((raw) => {
         if (!active || !raw) return;
         const parsed: unknown = JSON.parse(raw);
@@ -71,151 +57,51 @@ export function DemoProvider({
       .catch(() => {
         if (active)
           setStorageError(
-            "Saved demo could not be restored. A fresh preview is open.",
+            "Saved data on this device could not be read. Starting with an empty workspace; the saved copy was left unchanged.",
           );
-      });
-    const loadGuide = AsyncStorage.getItem(GUIDE_KEY)
-      .then((raw) => {
-        if (!active || !raw) return;
-        const parsed: unknown = JSON.parse(raw);
-        if (!isGuideProgress(parsed)) return;
-        guideRef.current = parsed;
-        setGuide(parsed);
       })
-      .catch(() => {
-        /* Guide preferences are optional; leave the fresh guide visible. */
+      .finally(() => {
+        if (active) setReady(true);
       });
-    const loadReplyDrafts = AsyncStorage.getItem(REPLY_DRAFTS_KEY)
-      .then(async (raw) => {
-        await loadData;
-        if (!active || !raw) return;
-        const parsed: unknown = JSON.parse(raw);
-        if (
-          !isReplyDrafts(
-            parsed,
-            dataRef.current.conversations.map(
-              (conversation) => conversation.id,
-            ),
-          )
-        )
-          throw new Error("Invalid saved reply drafts");
-        replyDraftsRef.current = parsed;
-        setReplyDrafts(parsed);
-      })
-      .catch(() => {
-        if (active)
-          setStorageError(
-            "Saved reply drafts could not be restored. Their stored copy has not been changed.",
-          );
-      });
-    Promise.all([loadData, loadGuide, loadReplyDrafts]).finally(() => {
-      if (active) setReady(true);
-    });
     return () => {
       active = false;
     };
-  }, [fresh]);
-  const update = (next: AppData) => {
-    if (!ready) return Promise.resolve(false);
-    dataRef.current = next;
-    setData(next);
-    if (fresh) return Promise.resolve(true);
-    // Serialize writes so a slower older save cannot replace a newer edit.
-    // Save deliberate edits only; a failed hydration must not overwrite saved data.
-    const saved = writes.current
-      .then(() => AsyncStorage.setItem(KEY, JSON.stringify(next)))
-      .then(() => {
-        setStorageError("");
-        return true;
-      })
-      .catch(() => {
-        setStorageError(
-          "Changes are available this session, but could not be saved on this device.",
-        );
-        return false;
-      });
-    writes.current = saved.then(() => undefined);
-    return saved;
-  };
-  const saveGuide = (next: GuideProgress) => {
-    if (!ready) return;
-    guideRef.current = next;
-    setGuide(next);
-    if (fresh) return;
-    writes.current = writes.current
-      .then(() => AsyncStorage.setItem(GUIDE_KEY, JSON.stringify(next)))
-      .catch(() =>
-        setStorageError(
-          "Your guide preference could not be saved on this device.",
-        ),
-      );
-  };
-  const saveReplyDrafts = (next: ReplyDrafts) => {
-    if (!ready) return;
-    replyDraftsRef.current = next;
-    setReplyDrafts(next);
-    if (fresh) return;
-    // Only intentional typing, successful replies, or reset write this key.
-    // Never overwrite the saved map with an empty hydration fallback.
-    writes.current = writes.current
-      .then(() => AsyncStorage.setItem(REPLY_DRAFTS_KEY, JSON.stringify(next)))
-      .catch(() =>
-        setStorageError(
-          "Your reply draft is available this session, but could not be saved on this device.",
-        ),
-      );
-  };
-  return (
-    <Context.Provider
-      value={{
-        data,
-        ready,
-        storageError,
-        update,
-        reset: () => {
-          update(fresh ? emptyWorkspace() : createSeedData());
-          saveGuide({ hidden: false, completed: [] });
-          saveReplyDrafts({});
-        },
-        guide,
-        completeGuide: (step) => {
-          const current = guideRef.current;
-          if (
-            ["writer", "campaign", "reply"].includes(step) &&
-            !current.completed.includes(step)
-          )
-            saveGuide({ ...current, completed: [...current.completed, step] });
-        },
-        showGuide: (show) => saveGuide({ ...guideRef.current, hidden: !show }),
-        replyDrafts,
-        setReplyDraft: (conversationId, text, expectedCurrentText) => {
-          if (!ready) return;
-          // An awaited save must not clear newer text typed while it was pending.
-          if (
-            expectedCurrentText !== undefined &&
-            replyDraftsRef.current[conversationId] !== expectedCurrentText
-          )
-            return;
-          saveReplyDrafts(
-            setConversationDraft(
-              replyDraftsRef.current,
-              dataRef.current.conversations.map(
-                (conversation) => conversation.id,
-              ),
-              conversationId,
-              text,
-            ),
+  }, [storageKey]);
+
+  const store = useMemo<Store>(() => {
+    const persist = (next: AppData) => {
+      dataRef.current = next;
+      setData(next);
+      // Serialize writes so a slower older save cannot replace a newer edit.
+      const saved = writes.current
+        .then(() => AsyncStorage.setItem(storageKey, JSON.stringify(next)))
+        .then(() => {
+          setStorageError("");
+          return true;
+        })
+        .catch(() => {
+          setStorageError(
+            "Your change is available now but could not be saved on this device.",
           );
-        },
-      }}
-    >
-      {children}
-    </Context.Provider>
-  );
+          return false;
+        });
+      writes.current = saved.then(() => undefined);
+      return saved;
+    };
+    return {
+      data,
+      ready,
+      storageError,
+      update: (next) => (ready ? persist(next) : Promise.resolve(false)),
+      reset: () => (ready ? persist(emptyWorkspace()) : Promise.resolve(false)),
+    };
+  }, [data, ready, storageError, storageKey]);
+
+  return <Context.Provider value={store}>{children}</Context.Provider>;
 }
 
-export function useDemo() {
+export function useWorkspace() {
   const value = useContext(Context);
-  if (!value) throw new Error("DemoProvider is required");
+  if (!value) throw new Error("WorkspaceProvider is required");
   return value;
 }

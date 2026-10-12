@@ -1,108 +1,86 @@
 # SAM mobile experience
 
-The 0.2 design is a mobile companion for the current SAM AI workspace at `sam3.txhd.io`. Its purpose is to let a business owner finish common work quickly: prepare a campaign, handle inbox replies, and check billing. These tasks lead the experience; writing assistance is available within campaign creation.
+Version 0.3 is a mobile companion for the SAM 3.0 workspace at `sam3.txhd.io`, designed to look and behave like the product the owner already uses. It lets a business owner prepare campaigns, manage subscriber groups, and keep SAM's web tools one tap away. Everything the app saves lives on the device; it is not signed in to a SAM account and does not send messages, read the live inbox, or load billing.
 
-The authenticated web workspace informed the workflows. The app uses fictional data, local drafts, sample billing information, and offline template suggestions. It is not signed in to the user's SAM account and does not call a live AI, sending, or billing service.
+## Design reference
+
+The authenticated SAM 3.0 workspace and the public textmunication.com site were inspected on October 12, 2026. The app follows them directly:
+
+| Element            | SAM 3.0 / textmunication.com                                                   | App                                                        |
+| ------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Wordmarks          | SAM AI wordmark in the SAM header; Textmunication wordmark on the website      | SAM AI in the app header and sign-in; Textmunication on welcome |
+| Primary color      | SAM blue `#1785CF` (Sign In, New Message, Add Subscriber)                      | `C.primary` for primary buttons, links, active tab         |
+| Secondary actions  | Pink outline `#CF1785` (Manage, View campaigns, View Details)                  | `accent` button variant on dashboard tiles                 |
+| Outline actions    | Blue outline (Send Campaign), gray outline (Create Group)                      | `outlinePrimary` and `outline` variants                    |
+| Text and surfaces  | Ink `#020817`, slate `#64748B`, borders `#E2E8F0`, page `#F8FAFC`, white cards | Same tokens in `src/ui.tsx`                                |
+| Typeface           | textmunication.com uses Inter; SAM uses Roboto                                 | Inter (400–700) loaded with `@expo-google-fonts/inter`      |
+| Page header        | Large bold title, muted subtitle, action button on the right                   | `PageHeader` with the action row beneath on phones         |
+| Statistic tiles    | Label, large value, caption, optional pink action                              | `StatCard`                                                 |
+| Campaign wizard    | "Create New Campaign", Step n of 5, percent complete, progress bar, five steps  | Same structure and labels                                  |
+| Sign in / register | "Welcome Back", "Create your SAM account!", required-field asterisks, Remember me, Forgot password?, Terms and Privacy footer | Same copy and layout |
+
+SAM's left sidebar (Dashboard, Campaigns, Automated Messaging, Subscribers, Inbox, Gamification, Integrations, Reporting, Subaccounts) becomes a five-tab bar: Dashboard, Campaigns, Inbox, Subscribers, Account. Features that only exist on the web (automated messaging, keywords, reporting, numbers, billing) are reachable from Inbox and Account through verified links.
 
 ## Navigation and first use
 
-- **Home:** direct quick actions for campaigns, inbox, and billing, then unread conversations and work to resume. The optional getting-started guide supports the tasks without becoming the main screen; progress survives a restart and can be revisited.
-- **Campaigns:** find a draft, continue editing it, or start a new campaign. Editing updates the same record.
-- **Inbox:** find a conversation, read the thread, and save a demo reply. Replies to opted-out contacts remain blocked.
-- **Audience:** search contacts and inspect group membership and consent status.
-- **Billing:** the fifth primary destination, with clearly labeled sample account information. It helps the owner understand the billing layout without implying that the app has loaded an actual balance, invoice, or payment method.
-- **Settings:** available from the header so the five primary destinations remain easy to scan.
-
-**Start with an example** sits above the message field, where assistance is useful. It offers three goals: Share an offer, Reconnect, and Send an update. Offer examples open a guided form for the business, benefit, qualifying purchase, exact expiration date, and optional terms. In-person use is the default; online checkout setup is optional. Reconnection and update messages retain the freeform details and tone controls. The owner explicitly applies or replaces a suggestion and can edit every word. Offline templates add framing; example discounts and dates appear only after choosing an example. The owner can type directly without using the helper.
+- **Welcome:** Textmunication wordmark, the "Turn every text into revenue" headline, a SAM AI dashboard preview, **Create account** and **Sign in**.
+- **Create account:** Account (email, password, confirm) then Business (name, industry). **Sign in:** email and password with Remember me and Forgot password (opens SAM). Both open a local session saved on the device. Credentials are never stored or transmitted.
+- **Dashboard Overview:** greeting, **Send Campaign**, four tiles (Total Unique Subscribers → Manage, Total Campaigns → View campaigns, Monthly Opt-ins, Monthly Opt-outs), **Up next** (scheduled campaigns and drafts, past-due schedules flagged), **SAM AI Assist**, and **Open SAM on the web**.
+- **Campaigns:** Drafts / Scheduled / Sent tiles, search, status chips, list rows with type and status badges. Drafts and schedules reopen in the wizard; sent campaigns open SAM on the web.
+- **Inbox:** honest empty state with links to Inbox, Automated Messaging, and SAM Help AI on the web.
+- **Subscribers:** **Create Group** and **Add Subscriber**, tiles, Groups list (All subscribers, Manual Groups, Opted Out Subscribers), search by name or number, subscriber detail sheet.
+- **Account:** business information (editable), "Not connected to SAM" status, Plan & billing (public plans only, managed in SAM), links to SAM account settings, numbers and keywords, Inbox, SAM Help AI, API documentation, **Sign out**, **Remove data from this device**.
+- Unknown routes redirect to the dashboard. A restored session keeps the route it was opened on; a fresh sign-in starts at the dashboard.
 
 ## Campaign flow
 
-1. **Message:** type directly, use Writer, or expand **Use a past message** to choose from recent sent campaigns. **Use again** in a sent campaign's details opens the same flow. Copied messages start here so the owner can update dates, prices, and offers. Preserve the message when moving between steps.
-2. **Audience:** select a group and see how many subscribed contacts qualify. Opted-out contacts are excluded.
-3. **Review:** show the complete message, opt-out wording, audience count, timing, and estimated SMS segments before saving a local draft or schedule preview.
+1. **Campaign Details:** name (required), type (SMS; MMS and RCS are shown as web-only), sender note.
+2. **Message Content:** SAM AI Assist (Share an offer with the guided offer helper, Reconnect, Send an update, tone chips), **Use a past message** when sent campaigns exist, the message editor, the automatic opt-out line, and the GSM/Unicode segment estimate.
+3. **Audience:** All subscribers or any group, with subscribed counts and opted-out exclusions. A campaign can be saved before any subscribers exist.
+4. **Schedule:** Save as draft, Tomorrow at 10:00 AM, or a custom date and time in the device time zone. Past times are rejected. When editing, the current schedule can be kept.
+5. **Review:** phone preview with the opt-out footer, recipients, SMS per person, estimated messages, summary, **Save Draft** / **Schedule Campaign**, and **Delete campaign** for saved campaigns.
 
-The opt-out footer appears once. Segment estimates include that footer and account for Unicode characters. Saving a revised draft or schedule retains its ID and recalculates the audience using current consent. Sent sample campaigns cannot be rewritten. Local schedules do not execute.
-
-Reusing a campaign carries only its message, audience choice, and editable name with a **(copy)** suffix. The new draft receives its own identity on save; original delivery results, schedules, and recipient totals are not carried forward. Current consent determines the new recipient count. Closing a reused message before saving invokes the existing unsaved-changes guard. This shortcut adds no navigation destination or live sending operation.
+Editing a saved campaign allows jumping between steps. Closing with unsaved changes asks to keep or discard. Scheduled campaigns are saved locally; a schedule whose time has passed is labeled **Past due** until rescheduled. Nothing sends until the app is connected to SAM.
 
 ### Offer guidance
 
-The owner selects an example such as 20% off a visit, edits the details, and reviews the generated customer message including the opt-out footer. Invalid amounts or dates and incomplete checkout setup produce clear guidance. The example fields stay in memory while the helper is collapsed or the goal changes; the saved campaign retains only the resulting message, audience, name, and any local timing preview. Offer-form changes participate in the unsaved-changes guard.
+The offer helper fills editable fields from a chosen example (20% off, $10 off, free add-on) with the business name prefilled, validates amounts and dates, and writes customer-facing wording with in-person or online redemption instructions. It does not create a coupon or discount anywhere.
 
-In-person guidance tells staff to verify eligibility and apply the discount in their register. The optional online path requires a checkout code and HTTPS link that the owner says they already created and tested; it does not create or verify those external settings. The one-use-code walkthrough explains how a future connected redemption service would respond to a first use and a repeat check. Its fictional code and local state are clearly labeled as an example, not a working coupon or fraud prevention. Real redemption remains separate [integration work](INTEGRATION.md#offers-and-redemption).
+## Campaign ideas and results
+
+**Boost a slow day** on the Dashboard (and **Ideas** on Campaigns) opens a list of ideas filtered by the owner's industry, with generic ideas after them. A restaurant sees a slow-day breadsticks discount, a dinner push, a lunch-rush reminder, weekend plans, a win-back, and a today-only offer; retail, fitness, salon/spa, automotive, real estate, and non-profit businesses see their own.
+
+Each idea shows the full message with the business name, an editable offer value, three "why this works" points, a suggested send time (today if the cutoff has not passed, otherwise tomorrow), and **What it could bring in**: subscribers to reach (prefilled with the current count, editable so a new owner can explore), redemption percentage, average sale, and cost per message (prefilled with the Run plan overage). The projection multiplies reach by the 98% SMS open rate from textmunication.com, applies the redemption rate, and shows estimated revenue, message cost, and net. It is labeled as an estimate from the owner's inputs. **Create this campaign** opens the wizard with the name, message, All subscribers, and the suggested time filled in; the projection is saved with the campaign and shown again on Review.
+
+After sending through SAM, the owner opens the saved campaign and taps **Mark as sent in SAM**, which recounts recipients and records the time. Tapping a sent campaign opens its results sheet: message, audience, projected versus actual, a form for redemptions, revenue, and notes, the difference from the projection, **Use again**, and a link to delivery reports in SAM. The Campaigns "Sent" tile totals logged revenue. Nothing in this loop sends a message; it records what the owner did in SAM and what happened.
+
+## Subscribers
+
+Adding a subscriber requires a name, a mobile number (normalized to E.164; ten-digit North American numbers get +1), a group, and the owner's confirmation that the person agreed to receive texts. Duplicate numbers are rejected. Subscribers can change group, be marked opted out (recorded with a timestamp and excluded from every audience), be resubscribed, or be removed. Groups are unique ignoring case; "All subscribers" is reserved.
 
 ## Billing boundary
 
-Billing in this build is a demonstration of the owner's account view. Sample amounts, billing records, and statuses must be labeled as examples, not presented as the inspected account's real financial state. Interactions must not imply that a card was charged, a plan changed, or a payment succeeded. **Open SAM account settings** opens the verified `/account-settings` page in the full SAM website; it does not establish billing access in the app. The inspected web account did not expose a billing ledger, payment controls, or plan prices.
+Plan & billing lists the public plans from textmunication.com/pricing (checked October 12, 2026) for reference and states that plans, credits, invoices, and payment are managed in SAM on the web. The app shows no balance, charges nothing, and offers no in-app purchase.
 
-Actual plan, balance, usage, invoice, and payment-method data require the approved SAM billing API or provider portal, authenticated owner permissions, and server-side tenant checks. Neither those native interfaces nor a payment flow has been verified. Live billing is separate integration work, alongside native sign-in and sending.
+## Completed browser verification — October 12, 2026
 
-## Completed browser verification
+Checked in Chrome inside the 390 × 844 phone frame (`/phone.html`) and at 1568 pixels wide, with no console errors:
 
-The final web preview was exercised on October 6, 2026 using browser viewports of 390 × 844 and 320 × 740. These are browser checks, not physical-device or signed-native-build tests.
-
-Final desktop visual verification also passed at 1280 × 800, with the sidebar retaining its 250-pixel width after the scroll-layout fix.
-
-- Home displayed all five navigation tabs with the owner-focused layout.
-- A campaign was created from offline Writer details, targeted to VIP, reviewed, and named **Saturday hours**. Closing the edited composer opened the unsaved-changes guard; **Keep editing** retained the fields.
-- Saving the draft added one campaign. Reopening it, editing its content, and saving again retained a single matching campaign row and the VIP recipient count of 3.
-- An unfinished reply to fictional contact Olivia remained after closing and reopening the conversation and after the preview was restarted. Saving the demo reply appended the message and cleared its draft.
-- Fictional opted-out contact Daniel's conversation blocked reply controls.
-- Audience search for Olivia returned one result; the view remained usable at 320 pixels wide.
-- Billing opened with explicit not-connected status and sample credits. Its example-invoice sheet was clearly labeled and fit the 320-pixel viewport.
-- Dismissing the Home guide and reloading kept it hidden. **Settings → Show getting-started guide** returned to Home and restored the guide with its saved 3-of-3 completion state.
-
-TypeScript, lint, and all 23 automated tests passed. JavaScript export succeeded for iOS, Android, and web. Export verifies bundling; it does not produce signed store binaries or establish native behavior.
-
-### Campaign reuse verification
-
-The **Use again** improvement was checked on October 6, 2026 at 390 × 844, 320 × 740, and 1280 × 800 browser sizes. Both entry points opened the existing Message → Audience → Review flow. Choosing a past message filled its text and audience; an edited copy saved as a new draft with its own name, no schedule, and one opt-out footer. Reloading preserved that draft alongside the unchanged sent original. Closing either a picker-created copy or a directly reused message showed the unsaved-changes guard; **Keep editing** retained the message. The picker remained collapsed in a fresh blank composer.
-
-All 13 campaign-helper tests passed, including four new reuse regressions for independent identity, source preservation, discarded scheduling/results, current consent counts, and Unicode-safe names. TypeScript, lint, and iOS/Android/web bundle exports passed. No browser errors were reported during this walkthrough. Native-device testing remains pending.
-
-## Offer-helper verification
-
-The offer helper was exercised on October 6, 2026 in 390 × 844 and 320 × 740 phone previews and at 1280 × 800 on desktop. A selected 20% example populated editable fields; an empty business name produced inline guidance. Switching between offer and update goals retained the offer fields. Closing unfinished offer work triggered the unsaved-changes guard, and returning retained it. Tapping the already-selected discount type preserved its entered value.
-
-The optional online path withheld generated wording until its existing-code setup was acknowledged. Editing the discount removed that acknowledgement and preview. The in-person example populated the campaign editor, retained one opt-out footer in Review, and saved as **VIP thank-you offer — example**; the new draft survived refresh. The fictional redemption walkthrough displayed Valid, Used, then Already used. Its demo labeling remained visible at small phone width. No live code, checkout discount, SMS, or redemption was created.
-
-All 33 mobile helper tests, TypeScript, lint, and iOS/Android/web bundle exports passed. The tested browser reported no errors. Native keyboard settings for checkout code/URL capitalization and autocorrection are configured but still require real-device checks.
-
-## Welcome and SAM branding verification
-
-The welcome flow and visual alignment were checked on October 6, 2026 at 390 × 844 and 1280 × 720. The official SAM wordmark replaces the previous custom sparkle; blue controls, neutral surfaces, outline icons, and direct page titles follow the inspected SAM campaigns screen. App icons adapt the official letter paths to a square; provenance is recorded in `assets/SAM-BRAND-SOURCE.txt`.
-
-A fresh direct visit to `/billing` showed welcome first. Selecting **Explore the demo** opened Billing, and **Leave demo** returned to welcome. Re-entering retained all seven local campaigns, including the saved offer example. Reload returned to welcome. Clicking **Open SAM sign-in** did not grant demo access or create an authenticated mobile state; the fixed external website target is separate from this app. Native browser handoff and actual authentication remain unverified. The 390-pixel preview had no horizontal document overflow or reported browser errors.
-
-TypeScript, lint, and iOS/Android/web bundle exports passed. No provider credentials, messages, billing operations, or live sessions were used by this change. Signed builds and real-device checks remain pending.
-
-### Signup and sign-in walkthrough
-
-The October 6, 2026 update adds **Preview sign up** and **Preview sign in** on welcome. Signup proceeds through read-only sample account details, an explicitly simulated email confirmation, and sample business setup. Sign-in uses the same fictional account, with a password-reset explanation and return path. No credentials are accepted and no account, session, verification, or email is created.
-
-Both paths were completed in the browser and opened Home. Signup was started from a direct `/billing` visit and still landed on Home, after the navigator mounted. The existing seven campaigns remained, including **VIP thank-you offer — example**. Sign-in, the reset explanation, return to sign-in, and app entry also passed. The signup view was visually checked at 390 × 844; a narrower preview retained reachable controls and no horizontal document overflow. Steps returned to the top after proceeding. TypeScript, lint, and iOS/Android/web bundle exports passed. The live SAM website link is separate from these local walkthroughs.
-
-### Simpler phone preview
-
-The welcome screen was reduced to a short headline, two main preview actions, and a direct demo shortcut. Setup headings and explanations were shortened. `public/phone.html` embeds the same app at 390 × 844 inside a phone frame that scales to the browser panel; the frame does not change the native app or reset local storage.
-
-The simplified signup and sign-in/reset paths were completed in the phone frame. Signup steps start at the top after their keyed scroll container mounts. The campaign example helper, Inbox, and Billing opened inside the frame, and re-entry still showed the existing seven campaigns. The outer Reload control returned to welcome. TypeScript, lint, and all three platform exports passed. One MutationObserver error appeared during browser automation; no MutationObserver reference exists in the exported app or phone shell, and no visible flow failed. Its source was not attributed to app code. Native device verification remains pending.
-
-### Customer-facing first-time flow
-
-The current phone heading is **Mobile testing campaigns**. The app uses clean **Create account** and **Sign in** labels. Signup has two steps, Account and Business; the entered business name appears on Home. Credentials are ephemeral form state, are never persisted or transmitted, and do not authenticate a SAM session. There is no simulated verification email or account-created confirmation. Password reset explicitly opens the SAM website.
-
-Entry now creates an empty in-memory workspace with zero contacts, conversations, and campaigns. It never reads, resets, or overwrites the older stored demonstration dataset. Sign-out and refresh discard this new session. Home offers three next steps, and the five main destinations retain simple empty states. Drafts can be prepared before subscribers are added; delivery and scheduling remain unavailable. Billing shows no invented balances, plans, or invoice amounts.
-
-Verified in the phone frame on October 6, 2026: required signup guidance, editable fictional account details, business setup, and Home with zero records. A zero-subscriber draft was saved, reopened, edited through the unsaved-changes guard, and saved again. Billing displayed the unconnected invoice state. Sign-out returned to welcome; the sign-in/reset/back path returned to a fresh Home with zero drafts. TypeScript, lint, all three platform exports, and 26 domain/SAM helper tests passed, including explicit empty-draft opt-in and rejection of zero-recipient scheduling. Real authentication and device testing remain pending.
+- Welcome, Create account (Account → Business), and Sign in rendered with the Textmunication and SAM AI wordmarks, Inter, and SAM's layout.
+- Account creation opened Dashboard Overview with the entered business name. Subscribers showed zero records and the default groups.
+- Adding "Sarah Lee" with a ten-digit number and consent saved `+1 (925) 555-0182` in VIP; the VIP count and Total Unique Subscribers updated.
+- The wizard saved "Weekend special" to VIP scheduled for tomorrow at 10:00 AM. Campaigns listed it with SMS and Scheduled badges; Dashboard's Up next and Monthly Opt-ins updated.
+- Reloading the frame restored the session, the subscriber, and the schedule.
+- Editing the campaign jumped straight to Review, showed **Schedule Campaign** with the kept schedule, and **Delete campaign** removed it after confirmation.
+- SAM AI Assist produced a 20% offer message with the prefilled business name; closing the wizard showed the discard guard.
+- Account showed business information, the not-connected status, links, and Plan & billing with the public plans. Sign out returned to welcome; signing in restored the saved subscriber.
+- Campaign ideas opened from the Dashboard, showed the slow-day special with the business name, the projection updated with edited inputs, and **Create this campaign** opened the wizard with the message and suggested send time prefilled; Review showed the projected impact. **Mark as sent in SAM** moved the campaign to Sent, and the results sheet saved redemptions and revenue and showed projected versus actual.
+- Unit tests: 79 passing, covering SMS segmentation, consent, scheduling, immutable updates, malformed and legacy persisted data, template suggestions, phone normalization, subscriber and group rules, campaign types, deletion, and custom date parsing. Lint, TypeScript, `expo install --check`, `expo-doctor` (18/18), and iOS/Android/web exports passed.
 
 ## Remaining acceptance checks
 
-These checks remain pending and are not implied by the browser results above:
+These are not implied by the browser results above:
 
-- Complete a new campaign by typing directly without Writer, including navigation back through every step while retaining message, audience, and timing.
-- Verify inbox search and read/unread counts through their complete interaction sequence, including switching between multiple unfinished conversation drafts.
-- Verify both the Home billing shortcut and Billing navigation route, plus the external account-settings handoff.
-- Test keyboard avoidance, large text, safe areas, native back gestures, and VoiceOver/TalkBack on signed iOS and Android builds. No signed-native or physical-device testing has been completed.
-
-Automated helper tests cover faithful suggestions, footer duplication, final-body segment counts, title length, immutable draft edits, current consent counts, sent-campaign protection, reply draft handling, and valid saved guide state. Production authentication, live sending, inbox sync, billing, Writer behavior, notifications, and store submission require the separate [integration](INTEGRATION.md) and [release](RELEASE.md) work.
+- Signed iOS and Android builds on physical devices: keyboard avoidance inside sheets, large text, safe areas, back gestures, haptics, VoiceOver/TalkBack, and the branded splash screen.
+- Behavior with hundreds of subscribers and campaigns (list performance).
+- Everything that needs the live connection: sending, inbox sync, keyword opt-ins, reporting, and billing. See the [integration plan](INTEGRATION.md) and [release checklist](RELEASE.md).

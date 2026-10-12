@@ -5,45 +5,65 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Brand, Button, C, Icon, ui } from "./ui";
+import { Business } from "./access";
+import { SamLogo } from "./brand";
+import { Button, C, Checkbox, F, Icon, Input, R, t } from "./ui";
 
 export type AuthPath = "signup" | "signin";
 type AuthStep = AuthPath | "business" | "reset";
 
-/** UI walkthrough only. No credential is stored, transmitted, or authenticated. */
+export const INDUSTRIES = [
+  "Restaurant",
+  "Retail",
+  "Health & Fitness",
+  "Salon/Spa",
+  "Automotive",
+  "Real Estate",
+  "Non-Profit",
+  "Other",
+];
+
+const SAM_URL = "https://sam3.txhd.io/";
+const TERMS_URL = "https://www.textmunication.com/terms-of-service";
+const PRIVACY_URL = "https://www.textmunication.com/privacy-policy";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Account entry screens styled after the SAM 3.0 sign-in and registration
+ * pages. Credentials stay in component state and are discarded on unmount;
+ * this version does not authenticate against SAM.
+ */
 export function AuthWalkthrough({
   initialPath,
   onBack,
-  onEnterDemo,
+  onSignIn,
   onCompleteSetup,
 }: {
   initialPath: AuthPath;
   onBack: () => void;
-  onEnterDemo: () => void;
-  onCompleteSetup: (name: string) => void;
+  onSignIn: (email: string) => void;
+  onCompleteSetup: (email: string, business: Business) => void;
 }) {
   const [step, setStep] = useState<AuthStep>(initialPath);
+  const [email, setEmail] = useState("");
   const [businessName, setBusinessName] = useState("");
-  const [businessType, setBusinessType] = useState("Restaurant & café");
+  const [industry, setIndustry] = useState("Restaurant");
   const [error, setError] = useState("");
   const [opening, setOpening] = useState(false);
-  const signup = step === "signup" || step === "business";
-  const position = step === "business" ? 2 : 1;
 
   function goTo(next: AuthStep) {
     setError("");
     setStep(next);
   }
 
-  async function openReset() {
+  async function open(url: string) {
     setError("");
     setOpening(true);
     try {
-      await Linking.openURL("https://sam3.txhd.io/");
+      await Linking.openURL(url);
     } catch {
       setError("SAM could not open. Try again, or visit sam3.txhd.io.");
     } finally {
@@ -52,21 +72,19 @@ export function AuthWalkthrough({
   }
 
   const copy: Record<AuthStep, { title: string; detail: string }> = {
+    signin: { title: "Welcome Back", detail: "Sign in to your SAM account" },
     signup: {
-      title: "Create account",
-      detail: "A little about you. Then, your business.",
+      title: "Create your SAM account!",
+      detail: "Get started with the most powerful text marketing platform.",
     },
     business: {
       title: "Your business",
-      detail: "Make this workspace your own.",
-    },
-    signin: {
-      title: "Welcome back",
-      detail: "Your business, right where you left it.",
+      detail: "The name that appears in your messages and on your dashboard.",
     },
     reset: {
-      title: "Reset password",
-      detail: "Open SAM and choose Forgot password to reset your password.",
+      title: "Forgot password?",
+      detail:
+        "Password resets happen on the SAM website. Open SAM, choose Forgot password, and follow the emailed link.",
     },
   };
 
@@ -79,42 +97,50 @@ export function AuthWalkthrough({
         showsVerticalScrollIndicator={false}
       >
         <View style={s.frame}>
-          <Brand compact />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Back to welcome"
             onPress={onBack}
             style={({ pressed }) => [s.back, pressed && s.pressed]}
           >
-            <Icon name="arrow-left" size={16} color={C.primary} />
-            <Text style={s.linkText}>Back</Text>
+            <Icon name="arrow-left" size={17} color={C.text} />
+            <Text style={s.backText}>Back</Text>
           </Pressable>
+
+          <View style={s.logo}>
+            <SamLogo height={40} />
+          </View>
+
           <View style={s.card}>
-            {signup ? (
+            {step === "signup" || step === "business" ? (
               <View
                 style={s.progress}
-                accessibilityLabel={`Create account, step ${position} of 2`}
+                accessibilityLabel={`Create account, step ${step === "business" ? 2 : 1} of 2`}
               >
-                {["Account", "Business"].map((label, index) => (
-                  <View key={label} style={s.progressItem}>
-                    <View
-                      style={[
-                        s.progressBar,
-                        index < position && s.progressBarActive,
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        s.progressLabel,
-                        index === position - 1 && s.progressLabelActive,
-                      ]}
-                    >
-                      {label}
-                    </Text>
-                  </View>
-                ))}
+                {["Account", "Business"].map((label, index) => {
+                  const position = step === "business" ? 2 : 1;
+                  return (
+                    <View key={label} style={s.progressItem}>
+                      <View
+                        style={[
+                          s.progressBar,
+                          index < position && s.progressBarActive,
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          s.progressLabel,
+                          index === position - 1 && s.progressLabelActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             ) : null}
+
             <View style={s.heading}>
               <Text accessibilityRole="header" style={s.title}>
                 {copy[step].title}
@@ -122,12 +148,14 @@ export function AuthWalkthrough({
               <Text style={s.description}>{copy[step].detail}</Text>
             </View>
 
-            {step === "signup" || step === "signin" ? (
+            {step === "signin" || step === "signup" ? (
               <CredentialsForm
                 key={step}
                 path={step}
-                onContinue={
-                  step === "signup" ? () => goTo("business") : onEnterDemo
+                email={email}
+                onEmailChange={setEmail}
+                onContinue={() =>
+                  step === "signup" ? goTo("business") : onSignIn(email)
                 }
                 onSwitch={() => goTo(step === "signup" ? "signin" : "signup")}
                 onReset={() => goTo("reset")}
@@ -135,10 +163,11 @@ export function AuthWalkthrough({
             ) : null}
 
             {step === "business" ? (
-              <>
-                <Field
-                  label="Business name"
-                  placeholder="Your business name"
+              <View style={s.fields}>
+                <Input
+                  label="Business Name"
+                  required
+                  placeholder="e.g. Oak Street Coffee"
                   value={businessName}
                   onChangeText={(value) => {
                     setBusinessName(value);
@@ -146,40 +175,34 @@ export function AuthWalkthrough({
                   }}
                   autoCapitalize="words"
                   maxLength={80}
+                  help="Appears in disclaimers and welcome messages."
                 />
                 <View style={s.field}>
-                  <Text style={s.fieldLabel}>Business type</Text>
+                  <Text style={t.label}>Industry</Text>
                   <View style={s.choices}>
-                    {["Restaurant & café", "Retail & services", "Other"].map(
-                      (label) => (
-                        <Pressable
-                          key={label}
-                          accessibilityRole="radio"
-                          accessibilityLabel={label}
-                          accessibilityState={{
-                            checked: businessType === label,
-                          }}
-                          onPress={() => setBusinessType(label)}
-                          style={({ pressed }) => [
-                            s.choice,
-                            businessType === label && s.choiceSelected,
-                            pressed && s.pressed,
+                    {INDUSTRIES.map((label) => (
+                      <Pressable
+                        key={label}
+                        accessibilityRole="radio"
+                        accessibilityLabel={label}
+                        accessibilityState={{ checked: industry === label }}
+                        onPress={() => setIndustry(label)}
+                        style={({ pressed }) => [
+                          s.choice,
+                          industry === label && s.choiceSelected,
+                          pressed && s.pressed,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.choiceText,
+                            industry === label && s.choiceTextSelected,
                           ]}
                         >
-                          <Text
-                            style={[
-                              s.choiceText,
-                              businessType === label && s.choiceTextSelected,
-                            ]}
-                          >
-                            {label}
-                          </Text>
-                          {businessType === label ? (
-                            <Icon name="check" size={16} color={C.primary} />
-                          ) : null}
-                        </Pressable>
-                      ),
-                    )}
+                          {label}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
                 </View>
                 {error ? <FormError message={error} /> : null}
@@ -191,33 +214,38 @@ export function AuthWalkthrough({
                       setError("Add your business name to continue.");
                       return;
                     }
-                    onCompleteSetup(businessName);
+                    onCompleteSetup(email, { name: businessName, industry });
                   }}
                 />
-                <TextLink
-                  title="Back to account"
-                  onPress={() => goTo("signup")}
-                />
-              </>
+                <TextLink title="Back to account" onPress={() => goTo("signup")} />
+              </View>
             ) : null}
 
             {step === "reset" ? (
-              <>
+              <View style={s.fields}>
                 {error ? <FormError message={error} /> : null}
                 <Button
-                  title={opening ? "Opening SAM…" : "Reset on SAM"}
+                  title={opening ? "Opening SAM…" : "Open SAM to reset"}
                   icon="external-link"
                   disabled={opening}
-                  onPress={openReset}
+                  onPress={() => open(SAM_URL)}
                 />
-                <TextLink
-                  title="Back to sign in"
-                  onPress={() => goTo("signin")}
-                />
-              </>
+                <TextLink title="Back to sign in" onPress={() => goTo("signin")} />
+              </View>
             ) : null}
           </View>
-          <Text style={s.footer}>SAM AI by Textmunication</Text>
+
+          <Text style={s.legal}>
+            By continuing, you acknowledge and accept Textmunication{" "}
+            <Text style={s.legalLink} onPress={() => open(TERMS_URL)}>
+              Terms of Service
+            </Text>{" "}
+            and{" "}
+            <Text style={s.legalLink} onPress={() => open(PRIVACY_URL)}>
+              Privacy Policy
+            </Text>
+            .
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -227,113 +255,140 @@ export function AuthWalkthrough({
 /** Password state belongs only to this form and is discarded on unmount. */
 function CredentialsForm({
   path,
+  email,
+  onEmailChange,
   onContinue,
   onSwitch,
   onReset,
 }: {
   path: AuthPath;
+  email: string;
+  onEmailChange: (value: string) => void;
   onContinue: () => void;
   onSwitch: () => void;
   onReset: () => void;
 }) {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
 
   function leave(action: () => void) {
     setPassword("");
+    setConfirm("");
     action();
   }
 
-  function continueForm() {
-    if (path === "signup" && !fullName.trim()) {
-      setError("Add your name to continue.");
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+  function submit() {
+    if (!EMAIL_PATTERN.test(email.trim())) {
       setError("Enter a valid email address.");
-    } else if (!password.trim()) {
-      setError("Enter a password to continue.");
+    } else if (!password) {
+      setError("Enter your password.");
+    } else if (path === "signup" && password.length < 8) {
+      setError("Use at least 8 characters for your password.");
+    } else if (path === "signup" && confirm !== password) {
+      setError("Passwords do not match.");
     } else {
+      setError("");
       leave(onContinue);
     }
   }
 
   return (
     <View style={s.fields}>
-      {path === "signup" ? (
-        <Field
-          label="Full name"
-          placeholder="Your full name"
-          value={fullName}
-          onChangeText={setFullName}
-          autoCapitalize="words"
-          maxLength={100}
-        />
-      ) : null}
-      <Field
-        label="Email address"
-        placeholder="you@business.com"
+      <Input
+        label="Email Address"
+        required
+        placeholder="Enter your email"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          onEmailChange(value);
+          setError("");
+        }}
         inputMode="email"
         autoCapitalize="none"
+        autoCorrect={false}
         maxLength={254}
+        returnKeyType="next"
       />
-      <Field
+      <Input
         label="Password"
-        placeholder="Enter your password"
+        required
+        placeholder={path === "signup" ? "Create a password" : "Enter your password"}
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(value) => {
+          setPassword(value);
+          setError("");
+        }}
         secureTextEntry
         autoCapitalize="none"
-        importantForAutofill="noExcludeDescendants"
-        textContentType="none"
+        autoCorrect={false}
         maxLength={256}
-        onSubmitEditing={continueForm}
+        onSubmitEditing={path === "signin" ? submit : undefined}
+        returnKeyType={path === "signin" ? "go" : "next"}
       />
+      {path === "signup" ? (
+        <Input
+          label="Confirm Password"
+          required
+          placeholder="Re-enter your password"
+          value={confirm}
+          onChangeText={(value) => {
+            setConfirm(value);
+            setError("");
+          }}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={256}
+          onSubmitEditing={submit}
+          returnKeyType="go"
+        />
+      ) : null}
       {path === "signin" ? (
-        <TextLink title="Forgot password?" onPress={() => leave(onReset)} />
+        <View style={s.signinRow}>
+          <View style={s.remember}>
+            <Checkbox
+              checked={remember}
+              label="Remember me"
+              onToggle={() => setRemember(!remember)}
+            />
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Forgot password?"
+            onPress={() => leave(onReset)}
+            style={({ pressed }) => [s.inlineLink, pressed && s.pressed]}
+          >
+            <Text style={t.link}>Forgot password?</Text>
+          </Pressable>
+        </View>
       ) : null}
       {error ? <FormError message={error} /> : null}
-      <Button title="Continue" icon="arrow-right" onPress={continueForm} />
-      <TextLink
-        title={
-          path === "signup"
-            ? "Already have an account? Sign in"
-            : "New to SAM? Create account"
-        }
-        onPress={() => leave(onSwitch)}
+      <Button
+        title={path === "signup" ? "Create Account" : "Sign In"}
+        onPress={submit}
       />
-    </View>
-  );
-}
-
-function Field({
-  label,
-  ...props
-}: React.ComponentProps<typeof TextInput> & { label: string }) {
-  return (
-    <View style={s.field}>
-      <Text style={s.fieldLabel}>{label}</Text>
-      <TextInput
-        {...props}
-        accessibilityLabel={label}
-        autoComplete="off"
-        autoCorrect={false}
-        placeholderTextColor={C.muted}
-        style={s.input}
-      />
+      <View style={s.switchRow}>
+        <Text style={t.help}>
+          {path === "signup" ? "Have an account? " : "Don’t have an account? "}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={path === "signup" ? "Sign in" : "Sign up"}
+          onPress={() => leave(onSwitch)}
+          style={({ pressed }) => pressed && s.pressed}
+        >
+          <Text style={t.link}>{path === "signup" ? "Sign in" : "Sign up"}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 function FormError({ message }: { message: string }) {
   return (
-    <Text
-      accessibilityRole="alert"
-      accessibilityLiveRegion="polite"
-      style={ui.error}
-    >
+    <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={t.error}>
       {message}
     </Text>
   );
@@ -347,29 +402,30 @@ function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
       onPress={onPress}
       style={({ pressed }) => [s.textLink, pressed && s.pressed]}
     >
-      <Text style={[s.linkText, s.linkCentered]}>{title}</Text>
+      <Text style={[t.link, s.linkCentered]}>{title}</Text>
     </Pressable>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  scroll: { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 22 },
-  frame: { width: "100%", maxWidth: 420, alignSelf: "center" },
+  scroll: { flexGrow: 1, paddingHorizontal: 18, paddingVertical: 14 },
+  frame: { width: "100%", maxWidth: 440, alignSelf: "center" },
   back: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     minHeight: 44,
     alignSelf: "flex-start",
-    marginTop: 8,
-    marginBottom: 6,
+    paddingRight: 8,
   },
+  backText: { color: C.text, fontFamily: F.medium, fontSize: 14, lineHeight: 20 },
+  logo: { alignItems: "center", paddingVertical: 14 },
   card: {
-    padding: 20,
+    padding: 22,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 20,
+    borderRadius: R.lg,
     backgroundColor: C.white,
     gap: 18,
   },
@@ -377,62 +433,70 @@ const s = StyleSheet.create({
   progressItem: { flex: 1, gap: 7 },
   progressBar: { height: 4, borderRadius: 2, backgroundColor: C.border },
   progressBarActive: { backgroundColor: C.primary },
-  progressLabel: { fontSize: 11, lineHeight: 16, color: C.muted },
-  progressLabelActive: { color: C.primary, fontWeight: "700" },
-  heading: { gap: 6 },
+  progressLabel: {
+    fontFamily: F.medium,
+    fontSize: 11,
+    lineHeight: 16,
+    color: C.muted,
+  },
+  progressLabelActive: { color: C.primary, fontFamily: F.semibold },
+  heading: { gap: 6, alignItems: "center" },
   title: {
     color: C.ink,
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "700",
-    letterSpacing: -0.8,
+    fontFamily: F.bold,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.4,
+    textAlign: "center",
   },
-  description: { color: C.muted, fontSize: 14, lineHeight: 21 },
+  description: {
+    color: C.muted,
+    fontFamily: F.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
   fields: { gap: 14 },
   field: { gap: 7 },
-  fieldLabel: { color: C.ink, fontSize: 12, lineHeight: 18, fontWeight: "600" },
-  input: {
-    minHeight: 48,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 10,
-    backgroundColor: C.bg,
-    color: C.ink,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  choices: { gap: 8 },
+  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   choice: {
-    minHeight: 44,
+    minHeight: 38,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: R.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    justifyContent: "center",
+    backgroundColor: C.white,
+  },
+  choiceSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
+  choiceText: { color: C.text, fontFamily: F.medium, fontSize: 13, lineHeight: 18 },
+  choiceTextSelected: { color: C.primaryDark, fontFamily: F.semibold },
+  signinRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
+    gap: 10,
   },
-  choiceSelected: { borderColor: C.primary, backgroundColor: C.lilac },
-  choiceText: { color: C.muted, fontSize: 13, lineHeight: 20, flexShrink: 1 },
-  choiceTextSelected: { color: C.primary, fontWeight: "600" },
-  linkText: {
-    color: C.primary,
-    fontSize: 13,
-    lineHeight: 20,
-    fontWeight: "600",
+  remember: { flexShrink: 1 },
+  inlineLink: { minHeight: 44, justifyContent: "center" },
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 32,
   },
-  textLink: { minHeight: 44, justifyContent: "center", paddingVertical: 7 },
+  textLink: { minHeight: 44, justifyContent: "center" },
   linkCentered: { textAlign: "center" },
   pressed: { opacity: 0.65 },
-  footer: {
-    fontSize: 11,
-    lineHeight: 17,
+  legal: {
+    fontFamily: F.regular,
+    fontSize: 12,
+    lineHeight: 18,
     color: C.muted,
     textAlign: "center",
-    marginTop: 22,
+    marginTop: 18,
+    paddingHorizontal: 12,
   },
+  legalLink: { color: C.primary, fontFamily: F.medium },
 });

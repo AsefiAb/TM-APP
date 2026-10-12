@@ -1,8 +1,8 @@
 # SAM AI integration plan
 
-Status: **SAM 0.2 local prototype; not connected to production accounts; not published to either store.** The current product reference is [SAM AI at sam3.txhd.io](https://sam3.txhd.io/), inspected with the user's authorization on October 6, 2026. The app's fictional data and local actions are not evidence of real message delivery, account access, AI generation, campaign execution, or billing activity.
+Status: **SAM 0.3 local workspace; not connected to production accounts; not published to either store.** The current product reference is [SAM AI at sam3.txhd.io](https://sam3.txhd.io/), inspected with the user's authorization on October 6, 2026. The app's fictional data and local actions are not evidence of real message delivery, account access, AI generation, campaign execution, or billing activity.
 
-The mobile priority is owner productivity: campaigns, inbox, and billing. Home provides direct actions for this work; Audience supports targeting, and Writer assists within campaign creation. The five destinations are Home, Campaigns, Inbox, Audience, and Billing. Live campaign and inbox access, the billing contract, and native authentication must be verified before these local workflows become account-connected features.
+The mobile priority is owner productivity: campaigns, subscribers, and quick access to SAM. The five destinations mirror SAM 3.0: Dashboard, Campaigns, Inbox, Subscribers, and Account. The campaign wizard follows SAM's five steps, and SAM AI Assist helps within message content. Live campaign and inbox access, the billing contract, and native authentication must be verified before these local workflows become account-connected features.
 
 ## Current SAM workspace observations
 
@@ -110,13 +110,13 @@ Minimize retained customer data, redact message bodies and tokens from operation
 
 ### Welcome and session boundary
 
-`src/access.tsx` currently holds an in-memory `welcome` / `demo` choice. The root layout gates every workspace route behind explicit demo entry, then opens Home once the navigator is mounted. `src/auth-walkthrough.tsx` demonstrates signup, email confirmation, business setup, sign-in, and password reset using fixed read-only fictional details. These previews do not create accounts, verify email ownership, issue sessions, accept credentials, or send messages. Opening SAM in the browser does not set an authenticated state; no credential entry, token storage, callback, or unverified auth endpoint is implemented. Leaving the demo unmounts its provider and returns to welcome without deleting local fictional drafts. Reloading the app returns to welcome. This is a preview entry boundary, not a security control for real data.
+`src/access.tsx` holds a local session (signed-in flag, email, business name and industry) saved on the device under `@textmunication/session/v1`. `src/store.tsx` saves the workspace (groups, subscribers, campaigns) under `@textmunication/workspace/v1`. `src/auth-walkthrough.tsx` presents SAM-style Create account and Sign in screens; passwords stay in component state and are discarded, and no request is made to SAM. Opening SAM in the browser does not set an authenticated state; no token storage, callback, or unverified auth endpoint is implemented. Sign out returns to welcome and keeps device data; "Remove data from this device" clears the workspace. A restored session keeps the route it was opened on. This is a local entry boundary, not a security control for real data.
 
 Production requires SAM's approved mobile login/SSO contract: an OIDC authorization-code/PKCE configuration or an approved session-exchange flow; redirect registration; refresh, expiry, logout and revocation behavior; and user-to-business/role mapping. Deploy the business-controlled HTTPS backend and runtime secret storage separately from GitHub's diagnostic workflow. Only then add secure native session storage, server-enforced tenant authorization, cache clearing on logout/account change, and real account data. Never promote the local demo choice or browser session into an authenticated identity.
 
 ### Billing integration
 
-The Billing tab currently uses demonstration information. Sample plan details, balances, usage, invoices, and payment-method references are not assertions about the user's SAM account. No charge, purchase, subscription modification, card update, or invoice payment is performed by the demo.
+Plan & billing (Account → Plan & billing) lists the public plans from textmunication.com/pricing for reference and states that plans, credits, invoices, and payment are managed in SAM on the web. It shows no balance or invoice and performs no charge, purchase, subscription modification, card update, or invoice payment.
 
 Obtain the current billing contract from the SAM team before connecting the view. Verify the authoritative provider, owner permissions, organization mapping, currency and amount units, usage period, invoice status, and allowed portal actions. No native billing endpoint or hosted payment flow has been assumed. A link to the full SAM website opens a separate web session; it does not synchronize account data into the app.
 

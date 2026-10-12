@@ -14,3 +14,17 @@ Regenerate with the build-time Sharp module:
 node assets/generate-assets.cjs [path-to-sharp-module]
 The PowerShell wrapper accepts -SharpModule and -Node for alternate tool paths.
 No Sharp dependency is shipped in the application.
+
+Textmunication wordmark
+
+Source: https://www.textmunication.com/images/textmunication-logo.svg
+Retrieved from the public textmunication.com header on 2026-10-12.
+textmunication-logo.svg is the unchanged source; src/brand-assets.ts embeds it
+for react-native-svg (regenerate with:
+node -e "const fs=require('fs');const svg=fs.readFileSync('assets/textmunication-logo.svg','utf8').trim();fs.writeFileSync('src/brand-assets.ts','export const TEXTMUNICATION_LOGO_SVG = '+JSON.stringify(svg)+';\n')"
+and restore the header comment).
+
+Design reference (checked 2026-10-12): SAM 3.0 uses blue #1785CF controls,
+pink #CF1785 outline actions, ink #020817, slate borders #E2E8F0, page
+background #F8FAFC, and Roboto; textmunication.com uses Inter. The app uses
+Inter with the SAM colors.

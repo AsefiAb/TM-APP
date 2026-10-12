@@ -2,8 +2,30 @@ export type Contact = {
   id: string;
   name: string;
   phone: string;
-  group: "VIP" | "Members" | "Leads";
+  /** A group name from `AppData.groups` (or the default groups). */
+  group: string;
   consent: "subscribed" | "unsubscribed";
+  /** ISO timestamp of when the owner added this subscriber on the device. */
+  createdAt?: string;
+  /** ISO timestamp of the most recent local opt-out. */
+  optedOutAt?: string;
+};
+
+export type CampaignType = "SMS" | "MMS" | "RCS";
+
+/** The owner's own projection inputs, saved with a campaign for later comparison. */
+export type CampaignEstimate = {
+  redemptionRate: number;
+  averageTicket: number;
+  costPerMessage: number;
+};
+
+/** What actually happened, entered by the owner after sending through SAM. */
+export type CampaignResults = {
+  redemptions: number;
+  revenue: number;
+  note?: string;
+  recordedAt: string;
 };
 
 export type Message = {
@@ -24,9 +46,18 @@ export type Campaign = {
   id: string;
   name: string;
   body: string;
-  audience: "All subscribers" | "VIP" | "Members" | "Leads";
+  /** "All subscribers" or a group name. */
+  audience: string;
   status: "draft" | "scheduled" | "sent";
+  type?: CampaignType;
   scheduledAt?: string;
+  createdAt?: string;
+  /** When the owner marked it sent through SAM. */
+  sentAt?: string;
+  /** The idea this campaign started from, if any. */
+  ideaId?: string;
+  estimate?: CampaignEstimate;
+  results?: CampaignResults;
   recipients: number;
   delivered?: number;
   replies?: number;
@@ -34,6 +65,8 @@ export type Campaign = {
 
 export type AppData = {
   version: 1;
+  /** Owner-defined subscriber groups. Missing means the default groups. */
+  groups?: string[];
   contacts: Contact[];
   conversations: Conversation[];
   campaigns: Campaign[];
@@ -41,16 +74,29 @@ export type AppData = {
 
 export type CampaignInput = Pick<
   Campaign,
-  "name" | "body" | "audience" | "scheduledAt"
+  "name" | "body" | "audience" | "scheduledAt" | "type" | "ideaId" | "estimate"
 > & {
   /** Allows preparing a draft before contacts are added; never permits scheduling. */
   allowEmptyDraft?: boolean;
 };
 
+export type ContactInput = {
+  name: string;
+  phone: string;
+  group: string;
+  /** The owner confirms the person agreed to receive texts. */
+  consentConfirmed: boolean;
+};
+
+export const ALL_SUBSCRIBERS = "All subscribers";
+export const DEFAULT_GROUPS: readonly string[] = ["VIP", "Members", "Leads"];
+export const CAMPAIGN_TYPES: readonly CampaignType[] = ["SMS", "MMS", "RCS"];
 const MAX_NAME_LENGTH = 80;
+const MAX_NOTE_LENGTH = 280;
+const MAX_MONEY = 1_000_000_000;
+const MAX_GROUP_LENGTH = 40;
+const MAX_GROUPS = 50;
 const MAX_MESSAGE_LENGTH = 1600;
-const GROUPS = ["VIP", "Members", "Leads"] as const;
-const AUDIENCES = ["All subscribers", ...GROUPS] as const;
 const GSM_BASIC = new Set(
   "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà",
 );
@@ -60,6 +106,7 @@ const GSM_EXTENSION = new Set("^{}\\[~]|€\f");
 export function createSeedData(): AppData {
   return {
     version: 1,
+    groups: [...DEFAULT_GROUPS],
     contacts: [
       {
         id: "contact-1",
@@ -290,18 +337,218 @@ export function createSeedData(): AppData {
   };
 }
 
+/** The group list for a workspace; older saved data has no explicit groups. */
+export function getGroups(data: Pick<AppData, "groups">): string[] {
+  return data.groups ?? [...DEFAULT_GROUPS];
+}
+
 /** Opted-out contacts are excluded even when their group matches. */
 export function getAudienceContacts(
   contacts: Contact[],
-  audience: Campaign["audience"],
+  audience: string,
+  groups: readonly string[] = DEFAULT_GROUPS,
 ): Contact[] {
-  if (!AUDIENCES.includes(audience))
+  if (audience !== ALL_SUBSCRIBERS && !groups.includes(audience))
     throw new Error("Choose a valid audience.");
   return contacts.filter(
     (contact) =>
       contact.consent === "subscribed" &&
-      (audience === "All subscribers" || contact.group === audience),
+      (audience === ALL_SUBSCRIBERS || contact.group === audience),
   );
+}
+
+/**
+ * Normalizes a typed mobile number to E.164. Ten-digit North American numbers
+ * receive the +1 country code; other numbers must include their country code.
+ */
+export function normalizePhone(input: string): string {
+  if (typeof input !== "string") throw new Error("Enter a mobile number.");
+  const trimmed = input.trim();
+  if (!trimmed) throw new Error("Enter a mobile number.");
+  if (!/^[+\d\s().-]+$/.test(trimmed))
+    throw new Error("Use digits only, with an optional country code.");
+  const digits = trimmed.replace(/\D/g, "");
+  const candidate =
+    trimmed.startsWith("+") || digits.length !== 10 ? digits : `1${digits}`;
+  const phone = `+${candidate}`;
+  if (!/^\+[1-9]\d{7,14}$/.test(phone))
+    throw new Error(
+      "Enter a valid mobile number, for example 925 555 0182 or +1 925 555 0182.",
+    );
+  return phone;
+}
+
+function cleanName(value: unknown, label: string, max: number): string {
+  const name =
+    typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+  if (!name) throw new Error(`Enter ${label}.`);
+  if (name.length > max)
+    throw new Error(`Keep ${label} to ${max} characters or fewer.`);
+  return name;
+}
+
+/** Adds a subscriber the owner has permission to text. Never imports or sends. */
+export function addContact(
+  data: AppData,
+  input: ContactInput,
+  now = new Date(),
+): AppData {
+  const name = cleanName(input.name, "the subscriber's name", MAX_NAME_LENGTH);
+  const phone = normalizePhone(input.phone);
+  const groups = getGroups(data);
+  if (!groups.includes(input.group)) throw new Error("Choose a group.");
+  if (input.consentConfirmed !== true)
+    throw new Error(
+      "Confirm that this person agreed to receive text messages from you.",
+    );
+  if (data.contacts.some((contact) => contact.phone === phone))
+    throw new Error("A subscriber with this mobile number already exists.");
+  const contact: Contact = {
+    id: newId("contact"),
+    name,
+    phone,
+    group: input.group,
+    consent: "subscribed",
+    createdAt: now.toISOString(),
+  };
+  return { ...data, contacts: [contact, ...data.contacts] };
+}
+
+/** Edits a subscriber's name, group, or consent. Opt-outs are recorded locally. */
+export function updateContact(
+  data: AppData,
+  id: string,
+  patch: Partial<Pick<Contact, "name" | "group" | "consent">>,
+  now = new Date(),
+): AppData {
+  const existing = data.contacts.find((contact) => contact.id === id);
+  if (!existing) throw new Error("This subscriber could not be found.");
+  const next: Contact = { ...existing };
+  if (patch.name !== undefined)
+    next.name = cleanName(patch.name, "the subscriber's name", MAX_NAME_LENGTH);
+  if (patch.group !== undefined) {
+    if (!getGroups(data).includes(patch.group))
+      throw new Error("Choose a group.");
+    next.group = patch.group;
+  }
+  if (patch.consent !== undefined && patch.consent !== existing.consent) {
+    if (patch.consent !== "subscribed" && patch.consent !== "unsubscribed")
+      throw new Error("Choose a valid consent status.");
+    next.consent = patch.consent;
+    if (patch.consent === "unsubscribed") next.optedOutAt = now.toISOString();
+    else delete next.optedOutAt;
+  }
+  return {
+    ...data,
+    contacts: data.contacts.map((contact) =>
+      contact.id === id ? next : contact,
+    ),
+  };
+}
+
+/** Removes a subscriber and any local conversation with them. */
+export function removeContact(data: AppData, id: string): AppData {
+  if (!data.contacts.some((contact) => contact.id === id))
+    throw new Error("This subscriber could not be found.");
+  return {
+    ...data,
+    contacts: data.contacts.filter((contact) => contact.id !== id),
+    conversations: data.conversations.filter(
+      (conversation) => conversation.contactId !== id,
+    ),
+  };
+}
+
+/** Creates a manual subscriber group. Names are unique, ignoring case. */
+export function addGroup(data: AppData, name: string): AppData {
+  const group = cleanName(name, "a group name", MAX_GROUP_LENGTH);
+  if (group.toLowerCase() === ALL_SUBSCRIBERS.toLowerCase())
+    throw new Error("That name is reserved. Choose another group name.");
+  const groups = getGroups(data);
+  if (groups.some((item) => item.toLowerCase() === group.toLowerCase()))
+    throw new Error("A group with this name already exists.");
+  if (groups.length >= MAX_GROUPS)
+    throw new Error(`Keep to ${MAX_GROUPS} groups or fewer.`);
+  return { ...data, groups: [...groups, group] };
+}
+
+/**
+ * Records that the owner sent this campaign through SAM. The recipient count
+ * is recalculated from current consent at that moment; the schedule is cleared.
+ */
+export function markCampaignSent(
+  data: AppData,
+  id: string,
+  now = new Date(),
+): AppData {
+  const campaign = data.campaigns.find((item) => item.id === id);
+  if (!campaign) throw new Error("This campaign could not be found.");
+  if (campaign.status === "sent")
+    throw new Error("This campaign is already marked as sent.");
+  const recipients = getAudienceContacts(
+    data.contacts,
+    campaign.audience,
+    getGroups(data),
+  ).length;
+  const sent: Campaign = {
+    ...campaign,
+    status: "sent",
+    recipients,
+    sentAt: now.toISOString(),
+  };
+  delete sent.scheduledAt;
+  return {
+    ...data,
+    campaigns: data.campaigns.map((item) => (item.id === id ? sent : item)),
+  };
+}
+
+/** Saves the real outcome the owner observed for a sent campaign. */
+export function recordCampaignResults(
+  data: AppData,
+  id: string,
+  input: { redemptions: number; revenue: number; note?: string },
+  now = new Date(),
+): AppData {
+  const campaign = data.campaigns.find((item) => item.id === id);
+  if (!campaign) throw new Error("This campaign could not be found.");
+  if (campaign.status !== "sent")
+    throw new Error("Mark the campaign as sent before logging results.");
+  if (!isCount(input.redemptions))
+    throw new Error("Enter the number of redemptions as a whole number.");
+  if (
+    typeof input.revenue !== "number" ||
+    !Number.isFinite(input.revenue) ||
+    input.revenue < 0 ||
+    input.revenue > MAX_MONEY
+  )
+    throw new Error("Enter the revenue as a dollar amount.");
+  const note =
+    typeof input.note === "string" ? input.note.trim().slice(0, MAX_NOTE_LENGTH) : "";
+  const results: CampaignResults = {
+    redemptions: input.redemptions,
+    revenue: Math.round(input.revenue * 100) / 100,
+    recordedAt: now.toISOString(),
+    ...(note ? { note } : {}),
+  };
+  return {
+    ...data,
+    campaigns: data.campaigns.map((item) =>
+      item.id === id ? { ...item, results } : item,
+    ),
+  };
+}
+
+/** Deletes a draft or scheduled campaign. Sent history is kept. */
+export function deleteCampaign(data: AppData, id: string): AppData {
+  const campaign = data.campaigns.find((item) => item.id === id);
+  if (!campaign) throw new Error("This campaign could not be found.");
+  if (campaign.status === "sent")
+    throw new Error("Sent campaigns are kept for your records.");
+  return {
+    ...data,
+    campaigns: data.campaigns.filter((item) => item.id !== id),
+  };
 }
 
 /**
@@ -369,7 +616,14 @@ export function createCampaign(
       `Keep the campaign name to ${MAX_NAME_LENGTH} characters or fewer.`,
     );
   const body = normalizeMessage(input.body);
-  const recipients = getAudienceContacts(data.contacts, input.audience).length;
+  const type = input.type ?? "SMS";
+  if (!CAMPAIGN_TYPES.includes(type))
+    throw new Error("Choose a campaign type.");
+  const recipients = getAudienceContacts(
+    data.contacts,
+    input.audience,
+    getGroups(data),
+  ).length;
   const allowEmptyDraft =
     input.allowEmptyDraft === true && input.scheduledAt === undefined;
   if (!recipients && !allowEmptyDraft)
@@ -392,14 +646,22 @@ export function createCampaign(
     scheduledAt = new Date(timestamp).toISOString();
   }
 
+  if (input.estimate !== undefined && !isEstimate(input.estimate))
+    throw new Error("Check the projection inputs and try again.");
+  if (input.ideaId !== undefined && !isText(input.ideaId, 40))
+    throw new Error("Choose a valid campaign idea.");
   const campaign: Campaign = {
     id: newId("campaign"),
     name,
     body,
     audience: input.audience,
     status: scheduledAt ? "scheduled" : "draft",
+    type,
+    createdAt: now.toISOString(),
     recipients,
     ...(scheduledAt ? { scheduledAt } : {}),
+    ...(input.ideaId ? { ideaId: input.ideaId } : {}),
+    ...(input.estimate ? { estimate: { ...input.estimate } } : {}),
   };
   return { ...data, campaigns: [campaign, ...data.campaigns] };
 }
@@ -466,15 +728,75 @@ function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
-function isContact(value: unknown): value is Contact {
+function isOptionalDate(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (typeof value === "string" && Number.isFinite(Date.parse(value)))
+  );
+}
+
+function isContact(
+  value: unknown,
+  groups: readonly string[],
+): value is Contact {
   return (
     isRecord(value) &&
     isText(value.id) &&
-    isText(value.name) &&
+    isText(value.name, MAX_NAME_LENGTH) &&
     typeof value.phone === "string" &&
     /^\+[1-9]\d{7,14}$/.test(value.phone) &&
-    GROUPS.includes(value.group as Contact["group"]) &&
-    (value.consent === "subscribed" || value.consent === "unsubscribed")
+    typeof value.group === "string" &&
+    groups.includes(value.group) &&
+    (value.consent === "subscribed" || value.consent === "unsubscribed") &&
+    isOptionalDate(value.createdAt) &&
+    isOptionalDate(value.optedOutAt)
+  );
+}
+
+function isEstimate(value: unknown): value is CampaignEstimate {
+  if (!isRecord(value)) return false;
+  const { redemptionRate, averageTicket, costPerMessage } = value;
+  return (
+    typeof redemptionRate === "number" &&
+    Number.isFinite(redemptionRate) &&
+    redemptionRate >= 0 &&
+    redemptionRate <= 1 &&
+    typeof averageTicket === "number" &&
+    Number.isFinite(averageTicket) &&
+    averageTicket >= 0 &&
+    averageTicket <= MAX_MONEY &&
+    typeof costPerMessage === "number" &&
+    Number.isFinite(costPerMessage) &&
+    costPerMessage >= 0 &&
+    costPerMessage <= 1000
+  );
+}
+
+function isResults(value: unknown): value is CampaignResults {
+  if (!isRecord(value)) return false;
+  return (
+    isCount(value.redemptions) &&
+    typeof value.revenue === "number" &&
+    Number.isFinite(value.revenue) &&
+    value.revenue >= 0 &&
+    value.revenue <= MAX_MONEY &&
+    (value.note === undefined ||
+      (typeof value.note === "string" && value.note.length <= MAX_NOTE_LENGTH)) &&
+    typeof value.recordedAt === "string" &&
+    Number.isFinite(Date.parse(value.recordedAt))
+  );
+}
+
+function isGroupList(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= MAX_GROUPS &&
+    value.every(
+      (item) =>
+        isText(item, MAX_GROUP_LENGTH) &&
+        item.toLowerCase() !== ALL_SUBSCRIBERS.toLowerCase(),
+    ) &&
+    new Set(value.map((item) => item.toLowerCase())).size === value.length
   );
 }
 
@@ -499,14 +821,26 @@ function isConversation(value: unknown): value is Conversation {
   );
 }
 
-function isCampaign(value: unknown): value is Campaign {
+function isCampaign(
+  value: unknown,
+  groups: readonly string[],
+): value is Campaign {
   if (
     !isRecord(value) ||
     !isText(value.id) ||
     !isText(value.name, MAX_NAME_LENGTH) ||
     !isText(value.body, MAX_MESSAGE_LENGTH) ||
-    !AUDIENCES.includes(value.audience as Campaign["audience"]) ||
+    typeof value.audience !== "string" ||
+    (value.audience !== ALL_SUBSCRIBERS && !groups.includes(value.audience)) ||
     !["draft", "scheduled", "sent"].includes(value.status as string) ||
+    (value.type !== undefined &&
+      !CAMPAIGN_TYPES.includes(value.type as CampaignType)) ||
+    !isOptionalDate(value.createdAt) ||
+    !isOptionalDate(value.sentAt) ||
+    (value.ideaId !== undefined && !isText(value.ideaId, 40)) ||
+    (value.estimate !== undefined && !isEstimate(value.estimate)) ||
+    (value.results !== undefined && !isResults(value.results)) ||
+    (value.results !== undefined && value.status !== "sent") ||
     !isCount(value.recipients)
   )
     return false;
@@ -533,15 +867,16 @@ function hasUniqueIds(items: { id: string }[]): boolean {
 
 /** Rejects malformed nested records and broken references before restoring storage. */
 export function isAppData(input: unknown): input is AppData {
+  if (!isRecord(input) || input.version !== 1) return false;
+  if (input.groups !== undefined && !isGroupList(input.groups)) return false;
+  const groups = input.groups ?? DEFAULT_GROUPS;
   if (
-    !isRecord(input) ||
-    input.version !== 1 ||
     !Array.isArray(input.contacts) ||
-    !input.contacts.every(isContact) ||
+    !input.contacts.every((contact) => isContact(contact, groups)) ||
     !Array.isArray(input.conversations) ||
-    !input.conversations.every(isConversation) ||
+    !input.conversations.every((conversation) => isConversation(conversation)) ||
     !Array.isArray(input.campaigns) ||
-    !input.campaigns.every(isCampaign)
+    !input.campaigns.every((campaign) => isCampaign(campaign, groups))
   )
     return false;
 
