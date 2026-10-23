@@ -1,6 +1,6 @@
 # SAM AI by Textmunication
 
-A mobile companion for business owners using the [SAM 3.0 workspace](https://sam3.txhd.io/), built with Expo 57, React Native, TypeScript, and Expo Router. One codebase targets iOS, Android, and a responsive browser preview.
+A mobile companion for business owners using the [SAM 3.0 workspace](https://sam3.txhd.io/), built with Expo SDK 58 (React Native 0.88), TypeScript, and Expo Router. One codebase targets iOS, Android, and a responsive browser preview.
 
 Version 0.3 matches the look of the live SAM 3.0 application and textmunication.com: the SAM AI wordmark, SAM blue controls, pink outline actions, slate text on white cards, the Inter typeface, and the same page structure (Dashboard Overview, Campaigns, Inbox, Subscribers, Account Settings) with SAM's five-step campaign wizard.
 

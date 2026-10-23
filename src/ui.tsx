@@ -17,6 +17,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type ScrollViewInstance,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
@@ -656,7 +657,7 @@ export function Sheet({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= 700;
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
   const resetScroll = useCallback(() => {
     scroll.current?.scrollTo({ y: 0, animated: false });
   }, []);
